@@ -252,21 +252,21 @@ def generate_alphas(clips):
 
 def run_videomama(clips, chunk_size=50):
     """
-    Runs VideoMaMa on clips that have MaskHint but NO AlphaHint.
+    Runs VideoMaMa on clips that have VideoMamaMaskHint but NO AlphaHint.
     """
     # Process if:
-    # 1. Has MaskHint (File or Folder, Case-Insensitive)
+    # 1. Has VideoMamaMaskHint (File or Folder, Case-Insensitive)
     # 2. AND (Alpha is Missing OR Alpha is a Video File we want to upgrade)
     
     clips_to_process = []
     clip_mask_paths = {} # Store the resolved mask path for each clip
     
     for c in clips:
-        # Search for 'maskhint' asset (Strict: maskhint.ext or MaskHint/)
+        # Search for 'videomamamaskhint' asset (Strict: videomamamaskhint.ext or VideoMamaMaskHint/)
         candidates = []
         for f in os.listdir(c.root_path):
              stem, _ = os.path.splitext(f)
-             if stem.lower() == "maskhint":
+             if stem.lower() == "videomamamaskhint":
                  candidates.append(f)
         
         mask_asset_path = None
@@ -301,7 +301,7 @@ def run_videomama(clips, chunk_size=50):
             clips_to_process.append(c)
             
     if not clips_to_process:
-        logger.info(f"No candidates for VideoMaMa (looking for MaskHint + [NoAlpha OR VideoAlpha]).")
+        logger.info(f"No candidates for VideoMaMa (looking for VideoMamaMaskHint + [NoAlpha OR VideoAlpha]).")
         return
 
     logger.info(f"Found {len(clips_to_process)} clips for VideoMaMa processing.")
@@ -326,7 +326,7 @@ def run_videomama(clips, chunk_size=50):
         
         # Retrieve resolved path
         mask_hint_path = clip_mask_paths[clip.name]
-        logger.info(f"  Using MaskHint: {os.path.basename(mask_hint_path)}")
+        logger.info(f"  Using VideoMamaMaskHint: {os.path.basename(mask_hint_path)}")
         
         alpha_output_dir = os.path.join(clip.root_path, "AlphaHint")
         
@@ -370,7 +370,7 @@ def run_videomama(clips, chunk_size=50):
         # 2. Mask Frames
         mask_frames = []
         
-        # Check if MaskHint is a directory or a file (video)
+        # Check if VideoMamaMaskHint is a directory or a file (video)
         if os.path.isdir(mask_hint_path):
             # Directory of Images
             mask_files = sorted([f for f in os.listdir(mask_hint_path) if is_image_file(f)])
@@ -702,7 +702,7 @@ def organize_target(target_dir):
     Organizes a specific folder. 
     1. If loose video -> Rename to Input.ext (if safe).
     2. If sequence -> Move to Input/.
-    3. Ensure AlphaHint and MaskHint folders exist.
+    3. Ensure AlphaHint and VideoMamaMaskHint folders exist.
     """
     logger.info(f"Organizing Target: {target_dir}")
     
@@ -747,7 +747,7 @@ def organize_target(target_dir):
                 logger.error(f"Failed to organize sequence in '{target_dir}': {e}")
 
     # Create Hints
-    for hint in ["AlphaHint", "MaskHint"]:
+    for hint in ["AlphaHint", "VideoMamaMaskHint"]:
         hint_path = os.path.join(target_dir, hint)
         if not os.path.exists(hint_path):
             os.makedirs(hint_path)
@@ -786,7 +786,7 @@ def organize_clips(clips_dir):
              logger.info(f"Organized: Moved '{v}' to '{clip_name}/Input{ext}'")
              
              # Also initialize hints immediately
-             for hint in ["AlphaHint", "MaskHint"]:
+             for hint in ["AlphaHint", "VideoMamaMaskHint"]:
                 os.makedirs(os.path.join(target_folder, hint), exist_ok=True)
          except Exception as e:
              logger.error(f"Failed to organize video '{v}': {e}")
@@ -831,7 +831,7 @@ def interactive_wizard(win_path):
         # Scan subfolders
         work_dirs = [os.path.join(linux_path, d) for d in os.listdir(linux_path) if os.path.isdir(os.path.join(linux_path, d))]
         # Filter out output/hints
-        work_dirs = [d for d in work_dirs if os.path.basename(d) not in ["Output", "AlphaHint", "MaskHint", ".ipynb_checkpoints"]]
+        work_dirs = [d for d in work_dirs if os.path.basename(d) not in ["Output", "AlphaHint", "VideoMamaMaskHint", ".ipynb_checkpoints"]]
     
     print(f"\nFound {len(work_dirs)} potential clip folders.")
     
@@ -845,7 +845,7 @@ def interactive_wizard(win_path):
         has_input = os.path.exists(os.path.join(d, "Input")) or glob.glob(os.path.join(d, "Input.*"))
         # Check for hints
         has_alpha = os.path.exists(os.path.join(d, "AlphaHint"))
-        has_mask = os.path.exists(os.path.join(d, "MaskHint"))
+        has_mask = os.path.exists(os.path.join(d, "VideoMamaMaskHint"))
         
         if not has_input or not has_alpha or not has_mask:
             dirs_needing_org.append(d)
@@ -883,7 +883,7 @@ def interactive_wizard(win_path):
                      logger.info(f"Organized: Moved '{v}' to '{clip_name}/Input{ext}'")
                      
                      # Also initialize hints immediately
-                     for hint in ["AlphaHint", "MaskHint"]:
+                     for hint in ["AlphaHint", "VideoMamaMaskHint"]:
                         os.makedirs(os.path.join(target_folder, hint), exist_ok=True)
                  except Exception as e:
                      logger.error(f"Failed to organize video '{v}': {e}")
@@ -898,7 +898,7 @@ def interactive_wizard(win_path):
             # If it wasn't a shot, we re-scan subdirs
             if not target_is_shot:
                  work_dirs = [os.path.join(linux_path, d) for d in os.listdir(linux_path) if os.path.isdir(os.path.join(linux_path, d))]
-                 work_dirs = [d for d in work_dirs if os.path.basename(d) not in ["Output", "AlphaHint", "MaskHint"]]
+                 work_dirs = [d for d in work_dirs if os.path.basename(d) not in ["Output", "AlphaHint", "VideoMamaMaskHint"]]
 
     # 4. Status Check Loop
     while True:
@@ -913,9 +913,9 @@ def interactive_wizard(win_path):
             except:
                 pass # Might act up if Input missing
             
-            # Check MaskHint (Strict: maskhint.ext or MaskHint/)
+            # Check VideoMamaMaskHint (Strict: videomamamaskhint.ext or VideoMamaMaskHint/)
             has_mask = False
-            mask_dir = os.path.join(d, "MaskHint")
+            mask_dir = os.path.join(d, "VideoMamaMaskHint")
             
             # 1. Directory Check
             if os.path.isdir(mask_dir) and len(os.listdir(mask_dir)) > 0:
@@ -925,7 +925,7 @@ def interactive_wizard(win_path):
             if not has_mask:
                 for f in os.listdir(d):
                     stem, _ = os.path.splitext(f)
-                    if stem.lower() == "maskhint" and is_video_file(f):
+                    if stem.lower() == "videomamamaskhint" and is_video_file(f):
                         has_mask = True
                         break
                 
@@ -941,7 +941,7 @@ def interactive_wizard(win_path):
         print(f"  READY (AlphaHint found): {len(ready)}")
         for c in ready: print(f"    - {c.name}")
         
-        print(f"  MASKED (MaskHint found): {len(masked)}")
+        print(f"  MASKED (VideoMamaMaskHint found): {len(masked)}")
         for c in masked: print(f"    - {c.name}")
         
         print(f"  RAW (Input only):        {len(raw)}")
@@ -968,7 +968,7 @@ def interactive_wizard(win_path):
         if choice == 'v':
             # VideoMaMa
             print("\n--- VideoMaMa ---")
-            print("Scanning for MaskHints...")
+            print("Scanning for VideoMamaMaskHints...")
             # We pass ALL missing alpha clips. run_videomama checks for the actual files.
             run_videomama(missing_alpha, chunk_size=50)
             input("VideoMaMa batch complete. Press Enter to Re-Scan...")

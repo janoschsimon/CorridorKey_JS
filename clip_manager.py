@@ -508,7 +508,7 @@ def run_videomama(clips: list[ClipEntry], chunk_size: int = 50, device: str | No
             traceback.print_exc()
 
 
-def run_inference(clips, device=None, backend=None):
+def run_inference(clips, device=None, backend=None, max_frames=None):
     ready_clips = [c for c in clips if c.input_asset and c.alpha_asset]
 
     if not ready_clips:
@@ -595,6 +595,8 @@ def run_inference(clips, device=None, backend=None):
             os.makedirs(d, exist_ok=True)
 
         num_frames = min(clip.input_asset.frame_count, clip.alpha_asset.frame_count)
+        if max_frames is not None:
+            num_frames = min(num_frames, max_frames)
         logger.info(
             f"  Input frames: {clip.input_asset.frame_count},"
             f" Alpha frames: {clip.alpha_asset.frame_count} -> Processing {num_frames} frames"
@@ -911,6 +913,12 @@ if __name__ == "__main__":
         default="auto",
         help="Inference backend (default: auto-detect MLX on Apple Silicon, else Torch)",
     )
+    parser.add_argument(
+        "--max-frames",
+        type=int,
+        default=None,
+        help="Limit number of frames to process per clip (e.g. 1 for first frame only)",
+    )
 
     args = parser.parse_args()
 
@@ -924,7 +932,7 @@ if __name__ == "__main__":
         generate_alphas(clips, device=device)
     elif args.action == "run_inference":
         clips = scan_clips()
-        run_inference(clips, device=device, backend=args.backend)
+        run_inference(clips, device=device, backend=args.backend, max_frames=args.max_frames)
     elif args.action == "wizard":
         if not args.win_path:
             print("Error: --win_path required for wizard.")

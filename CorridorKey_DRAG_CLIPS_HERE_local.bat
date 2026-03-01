@@ -1,9 +1,9 @@
 @echo off
 REM Corridor Key Launcher - Local
 
-REM Set script path (assumes clip_manager.py is in the same directory as this batch file)
+REM Set script path (assumes corridorkey_cli.py is in the same directory as this batch file)
 set "SCRIPT_DIR=%~dp0"
-set "LOCAL_SCRIPT=%SCRIPT_DIR%clip_manager.py"
+set "LOCAL_SCRIPT=%SCRIPT_DIR%corridorkey_cli.py"
 
 REM SAFETY CHECK: Ensure a folder was dragged onto the script
 if "%~1"=="" (

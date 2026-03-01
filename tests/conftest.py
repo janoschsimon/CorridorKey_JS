@@ -1,8 +1,7 @@
 """Shared pytest configuration and fixtures for CorridorKey tests."""
 
-from __future__ import annotations
-
-from unittest.mock import MagicMock
+import platform
+import sys
 
 import numpy as np
 import pytest
@@ -28,13 +27,31 @@ def _has_gpu():
     return False
 
 
+def _has_mlx():
+    """Check if MLX is available (Apple Silicon + corridorkey_mlx installed)."""
+    if sys.platform != "darwin" or platform.machine() != "arm64":
+        return False
+    try:
+        import corridorkey_mlx  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
 def pytest_collection_modifyitems(config, items):
-    """Auto-skip GPU tests when no GPU backend is available."""
+    """Auto-skip GPU/MLX tests when hardware is unavailable."""
     if not _has_gpu():
         skip_gpu = pytest.mark.skip(reason="No GPU available (neither CUDA nor MPS)")
         for item in items:
             if "gpu" in item.keywords:
                 item.add_marker(skip_gpu)
+
+    if not _has_mlx():
+        skip_mlx = pytest.mark.skip(reason="MLX not available (requires Apple Silicon + corridorkey_mlx)")
+        for item in items:
+            if "mlx" in item.keywords:
+                item.add_marker(skip_mlx)
 
 
 # ---------------------------------------------------------------------------

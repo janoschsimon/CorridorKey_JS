@@ -132,7 +132,7 @@ The `_MLXEngineAdapter` wraps `CorridorKeyMLXEngine` and:
 3. Applies despill/despeckle from `color_utils.py` (numpy, already available) since MLX stubs them
 4. Constructs the `processed` RGBA output (linear premul) from fg + alpha
 
-### Phase 2: Wire into `clip_manager.py`
+### Phase 2: Wire into `clip_manager.py` ✅
 
 Minimal change — replace:
 ```python
@@ -146,7 +146,7 @@ engine = create_engine(backend=args.backend, device=device)
 
 Add `--backend` to argparse (same pattern as `--device` from PR #33).
 
-### Phase 3: Local dev install
+### Phase 3: Local dev install ✅
 
 Add optional dependency group in `pyproject.toml`:
 ```toml
@@ -161,7 +161,7 @@ uv pip install -e ../corridorkey-mlx
 
 Python version compat: both repos require `>=3.11`. MLX CLAUDE.md says `3.12+` but `pyproject.toml` says `>=3.11`. No conflict.
 
-### Phase 4: Checkpoint discovery
+### Phase 4: Checkpoint discovery ✅
 
 Both checkpoint types live in `CorridorKeyModule/checkpoints/`:
 - Torch: `*.pth` (existing)

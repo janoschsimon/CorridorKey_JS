@@ -187,31 +187,7 @@ def get_gvm_processor(device: str = "cpu") -> GVMProcessor:
         raise RuntimeError(f"Failed to initialize GVM Processor: {e}") from e
 
 
-def get_corridor_key_engine(device: str = "cpu") -> CorridorKeyEngine:
-    try:
-        from CorridorKeyModule.inference_engine import CorridorKeyEngine
-
-        # Auto-detect checkpoint
-        ckpt_dir = os.path.join(BASE_DIR, "CorridorKeyModule/checkpoints")
-        ckpt_files = glob.glob(os.path.join(ckpt_dir, "*.pth"))
-
-        if len(ckpt_files) == 0:
-            raise FileNotFoundError(f"No .pth checkpoint found in {ckpt_dir}")
-        elif len(ckpt_files) > 1:
-            raise ValueError(
-                f"Multiple checkpoints found in {ckpt_dir}. "
-                f"Please ensure only one exists: {[os.path.basename(f) for f in ckpt_files]}"
-            )
-
-        ckpt_path = ckpt_files[0]
-        logger.info(f"Using checkpoint: {os.path.basename(ckpt_path)}")
-
-        return CorridorKeyEngine(checkpoint_path=ckpt_path, device=device, img_size=2048)
-    except Exception as e:
-        raise RuntimeError(f"Failed to initialize CorridorKey Engine: {e}") from e
-
-
-def generate_alphas(clips: list[ClipEntry], device: str | None = None) -> None:
+def generate_alphas(clips, device=None):
     clips_to_process = [c for c in clips if c.alpha_asset is None]
 
     if not clips_to_process:

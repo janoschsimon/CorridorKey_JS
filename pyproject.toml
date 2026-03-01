@@ -43,6 +43,7 @@ dev = [
     "pytest-cov",
     "ruff",
 ]
+mlx = ["corridorkey-mlx"]
 
 [project.scripts]
 corridorkey = "corridorkey_cli:main"

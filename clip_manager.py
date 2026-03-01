@@ -380,8 +380,6 @@ def run_videomama(clips: list[ClipEntry], chunk_size: int = 50, device: str | No
                     img = cv2.imread(fpath)
 
                 if img is not None:
-                    if len(input_frames) == 0:
-                        logger.info(f"Debug Input Frame 0 stats: Min={img.min()}, Max={img.max()}, Mean={img.mean()}")
                     input_frames.append(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
 
         # 2. Mask Frames
@@ -425,10 +423,6 @@ def run_videomama(clips: list[ClipEntry], chunk_size: int = 50, device: str | No
                 _, m = cv2.threshold(m, 10, 255, cv2.THRESH_BINARY)
                 mask_frames.append(m)
             cap.release()
-
-        if mask_frames:
-            m0 = mask_frames[0]
-            logger.info(f"Debug Mask Frame 0 stats (Thresholded): Min={m0.min()}, Max={m0.max()}, Mean={m0.mean()}")
 
         # Validate Lengths
         num_frames = min(len(input_frames), len(mask_frames))
@@ -480,12 +474,6 @@ def run_videomama(clips: list[ClipEntry], chunk_size: int = 50, device: str | No
                 for frame in chunk_frames:
                     if total_saved >= len(in_names):
                         break
-
-                    if total_saved == 0:
-                        logger.info(
-                            f"Debug Output Frame 0 stats: Min={frame.min()}, Max={frame.max()}, "
-                            f"Mean={frame.mean()}, Shape={frame.shape}, Dtype={frame.dtype}"
-                        )
 
                     name = in_names[total_saved]
                     out_path = os.path.join(alpha_output_dir, f"{name}.png")

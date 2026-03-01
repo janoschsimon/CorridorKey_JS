@@ -3,7 +3,7 @@ name = "corridorkey"
 version = "1.0.0"
 description = "Neural network green screen keying for professional VFX pipelines"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "CC-BY-NC-SA-4.0" }
 authors = [{ name = "Corridor Digital" }]
 
@@ -51,7 +51,7 @@ build-backend = "hatchling.build"
 packages = ["CorridorKeyModule", "gvm_core", "VideoMaMaInferenceModule"]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 120
 
 [tool.pytest.ini_options]

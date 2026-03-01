@@ -1073,7 +1073,10 @@ def interactive_wizard(win_path):
         elif choice == "i":
             # Inference
             print("\n--- Corridor Key Inference ---")
-            run_inference(ready)
+            try:
+                run_inference(ready)
+            except (RuntimeError, FileNotFoundError) as e:
+                logger.error(f"Inference failed: {e}")
             input("Inference batch complete. Press Enter to Re-Scan...")
             continue
 
@@ -1142,16 +1145,23 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.action == "list":
-        scan_clips()
-    elif args.action == "generate_alphas":
-        clips = scan_clips()
-        generate_alphas(clips)
-    elif args.action == "run_inference":
-        clips = scan_clips()
-        run_inference(clips)
-    elif args.action == "wizard":
-        if not args.win_path:
-            print("Error: --win_path required for wizard.")
-        else:
-            interactive_wizard(args.win_path)
+    try:
+        if args.action == "list":
+            scan_clips()
+        elif args.action == "generate_alphas":
+            clips = scan_clips()
+            generate_alphas(clips)
+        elif args.action == "run_inference":
+            clips = scan_clips()
+            run_inference(clips)
+        elif args.action == "wizard":
+            if not args.win_path:
+                print("Error: --win_path required for wizard.")
+            else:
+                interactive_wizard(args.win_path)
+    except KeyboardInterrupt:
+        print("\nInterrupted.")
+        sys.exit(130)
+    except Exception as e:
+        logger.error(str(e))
+        sys.exit(1)

@@ -13,6 +13,6 @@ echo "Starting CorridorKey Inference..."
 echo "Scanning ClipsForInference for Ready Clips (Input + Alpha)..."
 
 # Run Manager (uv handles the virtual environment automatically)
-uv run python "${SCRIPT_DIR}/clip_manager.py" --action run_inference
+uv run python "${SCRIPT_DIR}/corridorkey_cli.py" --action run_inference
 
 echo "Inference Complete."

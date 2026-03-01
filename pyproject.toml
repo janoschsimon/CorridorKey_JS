@@ -43,6 +43,9 @@ dev = [
     "ruff",
 ]
 
+[project.scripts]
+corridorkey = "corridorkey_cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

@@ -78,7 +78,7 @@ def _validate_mlx_available() -> None:
     except ImportError as err:
         raise RuntimeError(
             "MLX backend requested but corridorkey_mlx is not installed. "
-            "Install with: uv pip install -e ../corridorkey-mlx"
+            "Install with: uv pip install corridorkey-mlx@git+https://github.com/cmoyates/corridorkey-mlx.git"
         ) from err
 
 

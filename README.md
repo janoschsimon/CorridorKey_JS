@@ -143,9 +143,9 @@ Auto mode prefers MLX on Apple Silicon when available.
 
 ### MLX Setup (Apple Silicon)
 
-1. Install the MLX backend from sibling checkout:
+1. Install the MLX backend:
    ```bash
-   uv pip install -e ../corridorkey-mlx
+   uv pip install corridorkey-mlx@git+https://github.com/cmoyates/corridorkey-mlx.git
    ```
 2. Place converted weights in `CorridorKeyModule/checkpoints/`:
    ```
@@ -160,7 +160,7 @@ MLX uses img_size=2048 by default (same as Torch).
 
 ### Troubleshooting
 - **"No .safetensors checkpoint found"** — place MLX weights in `CorridorKeyModule/checkpoints/`
-- **"corridorkey_mlx not installed"** — run `uv pip install -e ../corridorkey-mlx`
+- **"corridorkey_mlx not installed"** — run `uv pip install corridorkey-mlx@git+https://github.com/cmoyates/corridorkey-mlx.git`
 - **"MLX requires Apple Silicon"** — MLX only works on M1+ Macs
 - **Auto picked Torch unexpectedly** — set `CORRIDORKEY_BACKEND=mlx` explicitly
 

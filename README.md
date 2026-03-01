@@ -46,6 +46,7 @@ This project uses **[uv](https://docs.astral.sh/uv/)** to manage Python and all 
 **For Windows Users (Automated):**
 1.  Clone or download this repository to your local machine.
 2.  Double-click `Install_CorridorKey_Windows.bat`. This will automatically install uv (if needed), set up your Python environment, install all dependencies, and download the CorridorKey model.
+    > **Note:** If this is the first time installing uv, any terminal windows you already had open won't see it. The installer script handles the current window automatically, but if you open a new terminal and get "'uv' is not recognized", just close and reopen that terminal.
 3.  (Optional) Double-click `Install_GVM_Windows.bat` and `Install_VideoMaMa_Windows.bat` to download the heavy optional Alpha Hint generator weights.
 
 **For Linux / Mac Users:**

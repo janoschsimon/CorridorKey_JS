@@ -23,7 +23,7 @@ if current_dir not in sys.path:
 
 from .pipeline import VideoInferencePipeline
 
-def load_videomama_model(base_model_path: Optional[str] = None, unet_checkpoint_path: Optional[str] = None, device: str = "cuda") -> VideoInferencePipeline:
+def load_videomama_model(base_model_path: Optional[str] = None, unet_checkpoint_path: Optional[str] = None, device: str = "cpu") -> VideoInferencePipeline:
     """
     Load VideoMaMa pipeline with pretrained weights.
 
@@ -156,7 +156,8 @@ def run_inference(
         print(f"  Running inference on chunk {i//chunk_size + 1}/{len(frames_resized)//chunk_size + 1} ({len(chunk_frames)} frames)...")
         
         # Clear cache before each chunk
-        torch.cuda.empty_cache()
+        if pipeline.device.type == "cuda":
+            torch.cuda.empty_cache()
         
         chunk_output = pipeline.run(
             cond_frames=chunk_frames,

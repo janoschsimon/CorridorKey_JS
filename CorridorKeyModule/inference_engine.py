@@ -14,7 +14,7 @@ from .core.model_transformer import GreenFormer
 
 class CorridorKeyEngine:
     def __init__(
-        self, checkpoint_path: str, device: str = "cuda", img_size: int = 2048, use_refiner: bool = True
+        self, checkpoint_path: str, device: str = "cpu", img_size: int = 2048, use_refiner: bool = True
     ) -> None:
         self.device = torch.device(device)
         self.img_size = img_size
@@ -172,8 +172,8 @@ class CorridorKeyEngine:
 
         # 6. Post-Process (Resize Back to Original Resolution)
         # We use Lanczos4 for high-quality resampling to minimize blur when going back to 4K/Original.
-        res_alpha = pred_alpha[0].permute(1, 2, 0).cpu().numpy()
-        res_fg = pred_fg[0].permute(1, 2, 0).cpu().numpy()
+        res_alpha = pred_alpha[0].permute(1, 2, 0).float().cpu().numpy()
+        res_fg = pred_fg[0].permute(1, 2, 0).float().cpu().numpy()
         res_alpha = cv2.resize(res_alpha, (w, h), interpolation=cv2.INTER_LANCZOS4)
         res_fg = cv2.resize(res_fg, (w, h), interpolation=cv2.INTER_LANCZOS4)
 

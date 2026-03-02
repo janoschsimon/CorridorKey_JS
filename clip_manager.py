@@ -14,6 +14,8 @@ os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 import cv2
 import numpy as np
 
+from device_utils import resolve_device
+
 if TYPE_CHECKING:
     from CorridorKeyModule.inference_engine import CorridorKeyEngine
     from gvm_core import GVMProcessor
@@ -136,7 +138,19 @@ class ClipEntry:
                 logging.warning(f"Clip '{self.name}': AlphaHint directory exists but is empty. Marking for generation.")
                 self.alpha_asset = None
             else:
+                # Check for image sequence first
                 self.alpha_asset = ClipAsset(target_alpha_dir, "sequence")
+                if self.alpha_asset.frame_count == 0:
+                    # Fallback: check for video file inside the AlphaHint directory
+                    video_candidates = [f for f in os.listdir(target_alpha_dir) if is_video_file(f)]
+                    if video_candidates:
+                        self.alpha_asset = ClipAsset(os.path.join(target_alpha_dir, video_candidates[0]), "video")
+                    else:
+                        logging.warning(
+                            f"Clip '{self.name}': AlphaHint directory has no valid image or video files."
+                            " Marking for generation."
+                        )
+                        self.alpha_asset = None
         else:
             # Check for video file (Case-Insensitive)
             # Match AlphaHint.* or alphahint.*
@@ -160,7 +174,7 @@ class ClipEntry:
 # --- Logic ---
 
 
-def get_gvm_processor(device: str = "cuda") -> GVMProcessor:
+def get_gvm_processor(device: str = "cpu") -> GVMProcessor:
     try:
         from gvm_core import GVMProcessor
 
@@ -173,7 +187,7 @@ def get_gvm_processor(device: str = "cuda") -> GVMProcessor:
         raise RuntimeError(f"Failed to initialize GVM Processor: {e}") from e
 
 
-def get_corridor_key_engine(device: str = "cuda") -> CorridorKeyEngine:
+def get_corridor_key_engine(device: str = "cpu") -> CorridorKeyEngine:
     try:
         from CorridorKeyModule.inference_engine import CorridorKeyEngine
 
@@ -197,7 +211,7 @@ def get_corridor_key_engine(device: str = "cuda") -> CorridorKeyEngine:
         raise RuntimeError(f"Failed to initialize CorridorKey Engine: {e}") from e
 
 
-def generate_alphas(clips: list[ClipEntry]) -> None:
+def generate_alphas(clips: list[ClipEntry], device: str | None = None) -> None:
     clips_to_process = [c for c in clips if c.alpha_asset is None]
 
     if not clips_to_process:
@@ -206,9 +220,8 @@ def generate_alphas(clips: list[ClipEntry]) -> None:
 
     logger.info(f"Found {len(clips_to_process)} clips missing Alpha.")
 
-    import torch
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if device is None:
+        device = resolve_device()
 
     try:
         processor = get_gvm_processor(device=device)
@@ -276,7 +289,7 @@ def generate_alphas(clips: list[ClipEntry]) -> None:
             traceback.print_exc()
 
 
-def run_videomama(clips: list[ClipEntry], chunk_size: int = 50) -> None:
+def run_videomama(clips: list[ClipEntry], chunk_size: int = 50, device: str | None = None) -> None:
     """
     Runs VideoMaMa on clips that have VideoMamaMaskHint but NO AlphaHint.
     """
@@ -342,9 +355,8 @@ def run_videomama(clips: list[ClipEntry], chunk_size: int = 50) -> None:
         logger.error(f"Failed to import VideoMaMa: {e}")
         return
 
-    import torch
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if device is None:
+        device = resolve_device()
 
     logger.info("Loading VideoMaMa Pipeline...")
     pipeline = load_videomama_model(device=device)
@@ -520,7 +532,7 @@ def run_videomama(clips: list[ClipEntry], chunk_size: int = 50) -> None:
             traceback.print_exc()
 
 
-def run_inference(clips: list[ClipEntry]) -> None:
+def run_inference(clips: list[ClipEntry], device: str | None = None) -> None:
     ready_clips = [c for c in clips if c.input_asset and c.alpha_asset]
 
     if not ready_clips:
@@ -586,9 +598,9 @@ def run_inference(clips: list[ClipEntry]) -> None:
         os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     import numpy as np
-    import torch
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if device is None:
+        device = resolve_device()
     engine = get_corridor_key_engine(device=device)
 
     for clip in ready_clips:
@@ -605,6 +617,14 @@ def run_inference(clips: list[ClipEntry]) -> None:
             os.makedirs(d, exist_ok=True)
 
         num_frames = min(clip.input_asset.frame_count, clip.alpha_asset.frame_count)
+        logger.info(
+            f"  Input frames: {clip.input_asset.frame_count},"
+            f" Alpha frames: {clip.alpha_asset.frame_count} -> Processing {num_frames} frames"
+        )
+
+        if num_frames == 0:
+            logger.warning(f"Clip '{clip.name}': 0 frames to process, skipping.")
+            continue
 
         input_cap = None
         alpha_cap = None
@@ -810,9 +830,6 @@ def organize_target(target_dir: str) -> None:
         hint_path = os.path.join(target_dir, hint)
         if not os.path.exists(hint_path):
             os.makedirs(hint_path)
-            # Create placeholder text file so git/user sees it? Optional.
-            # with open(os.path.join(hint_path, "_place_sequence_here.txt"), 'w') as f:
-            #     f.write("Place your image sequence here.")
 
 
 def organize_clips(clips_dir: str) -> None:

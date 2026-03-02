@@ -32,6 +32,7 @@ from clip_manager import (
     run_videomama,
     scan_clips,
 )
+from device_utils import resolve_device
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ def _configure_environment() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-def interactive_wizard(win_path: str) -> None:
+def interactive_wizard(win_path: str, device: str | None = None) -> None:
     print("\n" + "=" * 60)
     print(" CORRIDOR KEY - SMART WIZARD")
     print("=" * 60)
@@ -237,7 +238,7 @@ def interactive_wizard(win_path: str) -> None:
             print("\n--- VideoMaMa ---")
             print("Scanning for VideoMamaMaskHints...")
             # We pass ALL missing alpha clips. run_videomama checks for the actual files.
-            run_videomama(missing_alpha, chunk_size=50)
+            run_videomama(missing_alpha, chunk_size=50, device=device)
             input("VideoMaMa batch complete. Press Enter to Re-Scan...")
             continue
 
@@ -248,7 +249,7 @@ def interactive_wizard(win_path: str) -> None:
 
             yn = input("Proceed with GVM? [y/N]: ").strip().lower()
             if yn == "y":
-                generate_alphas(raw)
+                generate_alphas(raw, device=device)
                 input("GVM batch complete. Press Enter to Re-Scan...")
             continue
 
@@ -256,7 +257,7 @@ def interactive_wizard(win_path: str) -> None:
             # Inference
             print("\n--- Corridor Key Inference ---")
             try:
-                run_inference(ready)
+                run_inference(ready, device=device)
             except (RuntimeError, FileNotFoundError) as e:
                 logger.error(f"Inference failed: {e}")
             input("Inference batch complete. Press Enter to Re-Scan...")
@@ -282,23 +283,32 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="CorridorKey Clip Manager")
     parser.add_argument("--action", choices=["generate_alphas", "run_inference", "list", "wizard"], required=True)
     parser.add_argument("--win_path", help=r"Windows Path (example: V:\...) for Wizard Mode", default=None)
+    parser.add_argument(
+        "--device",
+        choices=["auto", "cuda", "mps", "cpu"],
+        default="auto",
+        help="Compute device (default: auto-detect CUDA > MPS > CPU)",
+    )
 
     args = parser.parse_args()
+
+    device = resolve_device(args.device)
+    logger.info(f"Using device: {device}")
 
     try:
         if args.action == "list":
             scan_clips()
         elif args.action == "generate_alphas":
             clips = scan_clips()
-            generate_alphas(clips)
+            generate_alphas(clips, device=device)
         elif args.action == "run_inference":
             clips = scan_clips()
-            run_inference(clips)
+            run_inference(clips, device=device)
         elif args.action == "wizard":
             if not args.win_path:
                 print("Error: --win_path required for wizard.")
             else:
-                interactive_wizard(args.win_path)
+                interactive_wizard(args.win_path, device=device)
     except KeyboardInterrupt:
         print("\nInterrupted.")
         sys.exit(130)

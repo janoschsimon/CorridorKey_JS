@@ -13,6 +13,6 @@ echo "Starting Coarse Alpha Generation..."
 echo "Scanning ClipsForInference..."
 
 # Run Manager (uv handles the virtual environment automatically)
-uv run python "${SCRIPT_DIR}/clip_manager.py" --action generate_alphas
+uv run python "${SCRIPT_DIR}/corridorkey_cli.py" --action generate_alphas
 
 echo "Done."

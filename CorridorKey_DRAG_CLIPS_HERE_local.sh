@@ -3,7 +3,7 @@
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-LOCAL_SCRIPT="$SCRIPT_DIR/clip_manager.py"
+LOCAL_SCRIPT="$SCRIPT_DIR/corridorkey_cli.py"
 
 # SAFETY CHECK: Ensure a folder was provided as an argument
 if [ -z "$1" ]; then

@@ -1,25 +1,27 @@
-import argparse
+from __future__ import annotations
+
 import glob
 import logging
 import os
-import sys
-
-# Enable OpenEXR Support (Must be before cv2 import)
-os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 import shutil
-import warnings
+import sys
+from typing import TYPE_CHECKING
+
+# Enable OpenEXR support in OpenCV — needed for EXR I/O throughout the pipeline.
+# Must be set before any cv2.imread/imwrite calls on .exr files.
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
 import cv2
 import numpy as np
 
 from device_utils import resolve_device
 
-# Suppress warnings
-warnings.filterwarnings("ignore")
+if TYPE_CHECKING:
+    from CorridorKeyModule.inference_engine import CorridorKeyEngine
+    from gvm_core import GVMProcessor
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 # Core Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -33,15 +35,15 @@ LINUX_MOUNT_ROOT = "/mnt/ssd-storage"
 
 
 # --- Helpers ---
-def is_image_file(filename):
+def is_image_file(filename: str) -> bool:
     return filename.lower().endswith((".png", ".jpg", ".jpeg", ".exr", ".tif", ".tiff", ".bmp"))
 
 
-def is_video_file(filename):
+def is_video_file(filename: str) -> bool:
     return filename.lower().endswith((".mp4", ".mov", ".avi", ".mkv"))
 
 
-def map_path(win_path):
+def map_path(win_path: str) -> str:
     r"""
     Converts a Windows path (example: V:\Projects\Shot1) to the local Linux path.
     """
@@ -64,13 +66,13 @@ def map_path(win_path):
 
 # --- Classes ---
 class ClipAsset:
-    def __init__(self, path, asset_type):
+    def __init__(self, path: str, asset_type: str) -> None:
         self.path = path
         self.type = asset_type  # 'sequence' or 'video'
         self.frame_count = 0
         self._calculate_length()
 
-    def _calculate_length(self):
+    def _calculate_length(self) -> None:
         if self.type == "sequence":
             files = sorted([f for f in os.listdir(self.path) if is_image_file(f)])
             self.frame_count = len(files)
@@ -84,13 +86,13 @@ class ClipAsset:
 
 
 class ClipEntry:
-    def __init__(self, name, root_path):
+    def __init__(self, name: str, root_path: str) -> None:
         self.name = name
         self.root_path = root_path
-        self.input_asset = None
-        self.alpha_asset = None
+        self.input_asset: ClipAsset | None = None
+        self.alpha_asset: ClipAsset | None = None
 
-    def find_assets(self):
+    def find_assets(self) -> None:
         # 1. Look for Input
         input_dir = os.path.join(self.root_path, "Input")
 
@@ -160,7 +162,7 @@ class ClipEntry:
             else:
                 self.alpha_asset = None  # Missing, needs generation
 
-    def validate_pair(self):
+    def validate_pair(self) -> None:
         if self.input_asset and self.alpha_asset:
             if self.input_asset.frame_count != self.alpha_asset.frame_count:
                 raise ValueError(
@@ -172,7 +174,7 @@ class ClipEntry:
 # --- Logic ---
 
 
-def get_gvm_processor(device="cpu"):
+def get_gvm_processor(device: str = "cpu") -> GVMProcessor:
     try:
         from gvm_core import GVMProcessor
 
@@ -185,7 +187,7 @@ def get_gvm_processor(device="cpu"):
         raise RuntimeError(f"Failed to initialize GVM Processor: {e}") from e
 
 
-def get_corridor_key_engine(device="cpu"):
+def get_corridor_key_engine(device: str = "cpu") -> CorridorKeyEngine:
     try:
         from CorridorKeyModule.inference_engine import CorridorKeyEngine
 
@@ -206,11 +208,10 @@ def get_corridor_key_engine(device="cpu"):
 
         return CorridorKeyEngine(checkpoint_path=ckpt_path, device=device, img_size=2048)
     except Exception as e:
-        logger.error(f"Failed to initialize CorridorKey Engine: {e}")
-        sys.exit(1)
+        raise RuntimeError(f"Failed to initialize CorridorKey Engine: {e}") from e
 
 
-def generate_alphas(clips, device=None):
+def generate_alphas(clips: list[ClipEntry], device: str | None = None) -> None:
     clips_to_process = [c for c in clips if c.alpha_asset is None]
 
     if not clips_to_process:
@@ -288,7 +289,7 @@ def generate_alphas(clips, device=None):
             traceback.print_exc()
 
 
-def run_videomama(clips, chunk_size=50, device=None):
+def run_videomama(clips: list[ClipEntry], chunk_size: int = 50, device: str | None = None) -> None:
     """
     Runs VideoMaMa on clips that have VideoMamaMaskHint but NO AlphaHint.
     """
@@ -345,7 +346,8 @@ def run_videomama(clips, chunk_size=50, device=None):
 
     logger.info(f"Found {len(clips_to_process)} clips for VideoMaMa processing.")
 
-    # Import locally...
+    # Import locally — sys.path mutation is needed because VideoMaMaInferenceModule
+    # uses intra-package imports that assume its directory is on the path.
     try:
         sys.path.append(os.path.join(BASE_DIR, "VideoMaMaInferenceModule"))
         from VideoMaMaInferenceModule.inference import load_videomama_model, run_inference
@@ -530,7 +532,7 @@ def run_videomama(clips, chunk_size=50, device=None):
             traceback.print_exc()
 
 
-def run_inference(clips, device=None):
+def run_inference(clips: list[ClipEntry], device: str | None = None) -> None:
     ready_clips = [c for c in clips if c.input_asset and c.alpha_asset]
 
     if not ready_clips:
@@ -770,7 +772,7 @@ def run_inference(clips, device=None):
         logger.info(f"Clip {clip.name} Complete.")
 
 
-def organize_target(target_dir):
+def organize_target(target_dir: str) -> None:
     """
     Organizes a specific folder.
     1. If loose video -> Rename to Input.ext (if safe).
@@ -828,12 +830,9 @@ def organize_target(target_dir):
         hint_path = os.path.join(target_dir, hint)
         if not os.path.exists(hint_path):
             os.makedirs(hint_path)
-            # Create placeholder text file so git/user sees it? Optional.
-            # with open(os.path.join(hint_path, "_place_sequence_here.txt"), 'w') as f:
-            #     f.write("Place your image sequence here.")
 
 
-def organize_clips(clips_dir):
+def organize_clips(clips_dir: str) -> None:
     """
     Legacy wrapper for backward compatibility with 'ClipsForInference' folder.
     Organizes all subfolders in the given directory using the new logic.
@@ -876,236 +875,7 @@ def organize_clips(clips_dir):
             organize_target(full_path)
 
 
-def interactive_wizard(win_path, device=None):
-    device = device or resolve_device()
-
-    print("\n" + "=" * 60)
-    print(" CORRIDOR KEY - SMART WIZARD")
-    print("=" * 60)
-
-    # 1. Map Path
-    linux_path = map_path(win_path)
-    print(f"Windows Path: {win_path}")
-    print(f"Linux Path:   {linux_path}")
-
-    if not os.path.exists(linux_path):
-        print("\n[ERROR] Path does not exist on Linux mount!")
-        print(f"Expected: {LINUX_MOUNT_ROOT}")
-        return
-
-    # 2. Analyze
-    # We treat linux_path as the ROOT containing SHOTS
-    # Or is linux_path the SHOT itself?
-    # HEURISTIC: If it contains "Input", it's a shot. If it contains folders, it's a project.
-
-    # Let's assume it's a folder containing CLIPS (Batch Mode)
-    # But if the user drops it IN a shot folder, we should handle that too.
-
-    target_is_shot = False
-    if os.path.exists(os.path.join(linux_path, "Input")) or glob.glob(os.path.join(linux_path, "Input.*")):
-        target_is_shot = True
-
-    work_dirs = []
-    if target_is_shot:
-        work_dirs = [linux_path]
-    else:
-        # Scan subfolders
-        work_dirs = [
-            os.path.join(linux_path, d) for d in os.listdir(linux_path) if os.path.isdir(os.path.join(linux_path, d))
-        ]
-        # Filter out output/hints
-        work_dirs = [
-            d
-            for d in work_dirs
-            if os.path.basename(d) not in ["Output", "AlphaHint", "VideoMamaMaskHint", ".ipynb_checkpoints"]
-        ]
-
-    print(f"\nFound {len(work_dirs)} potential clip folders.")
-
-    # Check for loose videos in root
-    loose_videos = [
-        f for f in os.listdir(linux_path) if is_video_file(f) and os.path.isfile(os.path.join(linux_path, f))
-    ]
-
-    # Check if existing folders need organization
-    dirs_needing_org = []
-    for d in work_dirs:
-        # Check for Input
-        has_input = os.path.exists(os.path.join(d, "Input")) or glob.glob(os.path.join(d, "Input.*"))
-        # Check for hints
-        has_alpha = os.path.exists(os.path.join(d, "AlphaHint"))
-        has_mask = os.path.exists(os.path.join(d, "VideoMamaMaskHint"))
-
-        if not has_input or not has_alpha or not has_mask:
-            dirs_needing_org.append(d)
-
-    if loose_videos or dirs_needing_org:
-        if loose_videos:
-            print(f"Found {len(loose_videos)} loose video files that need organization:")
-            for v in loose_videos:
-                print(f"  - {v}")
-
-        if dirs_needing_org:
-            print(f"Found {len(dirs_needing_org)} folders that might need setup (Hints/Input):")
-            # Limit output if too many
-            if len(dirs_needing_org) < 10:
-                for d in dirs_needing_org:
-                    print(f"  - {os.path.basename(d)}")
-            else:
-                print(f"  - ...and {len(dirs_needing_org)} others.")
-
-        # 3. Organize Loop
-        yn = input("\n[1] Organize Clips & Create Hint Folders? [y/N]: ").strip().lower()
-        if yn == "y":
-            # Organize loose videos first
-            for v in loose_videos:
-                clip_name = os.path.splitext(v)[0]
-                ext = os.path.splitext(v)[1]
-                target_folder = os.path.join(linux_path, clip_name)
-
-                if os.path.exists(target_folder):
-                    logger.warning(f"Skipping loose video '{v}': Target folder '{clip_name}' already exists.")
-                    continue
-
-                try:
-                    os.makedirs(target_folder)
-                    target_file = os.path.join(target_folder, f"Input{ext}")
-                    shutil.move(os.path.join(linux_path, v), target_file)
-                    logger.info(f"Organized: Moved '{v}' to '{clip_name}/Input{ext}'")
-
-                    # Also initialize hints immediately
-                    for hint in ["AlphaHint", "VideoMamaMaskHint"]:
-                        os.makedirs(os.path.join(target_folder, hint), exist_ok=True)
-                except Exception as e:
-                    logger.error(f"Failed to organize video '{v}': {e}")
-
-            # Organize existing folders
-            for d in work_dirs:
-                organize_target(d)
-            print("Organization Complete.")
-
-            # Re-scan in case structure changed
-            # If it was a shot, it's still a shot (unless we messed it up)
-            # If it wasn't a shot, we re-scan subdirs
-            if not target_is_shot:
-                work_dirs = [
-                    os.path.join(linux_path, d)
-                    for d in os.listdir(linux_path)
-                    if os.path.isdir(os.path.join(linux_path, d))
-                ]
-                work_dirs = [
-                    d for d in work_dirs if os.path.basename(d) not in ["Output", "AlphaHint", "VideoMamaMaskHint"]
-                ]
-
-    # 4. Status Check Loop
-    while True:
-        ready = []
-        masked = []
-        raw = []
-
-        for d in work_dirs:
-            entry = ClipEntry(os.path.basename(d), d)
-            try:
-                entry.find_assets()  # This checks Input and AlphaHint
-            except (FileNotFoundError, ValueError, OSError):
-                pass  # Might act up if Input missing
-
-            # Check VideoMamaMaskHint (Strict: videomamamaskhint.ext or VideoMamaMaskHint/)
-            has_mask = False
-            mask_dir = os.path.join(d, "VideoMamaMaskHint")
-
-            # 1. Directory Check
-            if os.path.isdir(mask_dir) and len(os.listdir(mask_dir)) > 0:
-                has_mask = True
-
-            # 2. File Check (Strict Stem Match)
-            if not has_mask:
-                for f in os.listdir(d):
-                    stem, _ = os.path.splitext(f)
-                    if stem.lower() == "videomamamaskhint" and is_video_file(f):
-                        has_mask = True
-                        break
-
-            if entry.alpha_asset:
-                ready.append(entry)
-            elif has_mask:
-                masked.append(entry)
-            else:
-                raw.append(entry)
-
-        print("\n" + "-" * 40)
-        print("STATUS REPORT:")
-        print(f"  READY (AlphaHint found): {len(ready)}")
-        for c in ready:
-            print(f"    - {c.name}")
-
-        print(f"  MASKED (VideoMamaMaskHint found): {len(masked)}")
-        for c in masked:
-            print(f"    - {c.name}")
-
-        print(f"  RAW (Input only):        {len(raw)}")
-        for c in raw:
-            print(f"    - {c.name}")
-        print("-" * 40 + "\n")
-
-        # Combine checks for actions
-        missing_alpha = masked + raw
-
-        print("\nACTIONS:")
-        if missing_alpha:
-            print(f"  [v] Run VideoMaMa (Found {len(masked)} ready with masks)")
-            print(f"  [g] Run GVM (Auto-Matte on {len(raw)} clips without Mask Hint)")
-
-        if ready:
-            print(f"  [i] Run Inference (on {len(ready)} ready clips)")
-
-        print("  [r] Re-Scan Folders")
-        print("  [q] Quit")
-
-        choice = input("\nSelect Action: ").strip().lower()
-
-        if choice == "v":
-            # VideoMaMa
-            print("\n--- VideoMaMa ---")
-            print("Scanning for VideoMamaMaskHints...")
-            # We pass ALL missing alpha clips. run_videomama checks for the actual files.
-            run_videomama(missing_alpha, chunk_size=50, device=device)
-            input("VideoMaMa batch complete. Press Enter to Re-Scan...")
-            continue
-
-        elif choice == "g":
-            # GVM
-            print("\n--- GVM Auto-Matte ---")
-            print(f"This will generate alphas for {len(raw)} clips that have NO Mask Hint.")
-
-            yn = input("Proceed with GVM? [y/N]: ").strip().lower()
-            if yn == "y":
-                generate_alphas(raw, device=device)
-                input("GVM batch complete. Press Enter to Re-Scan...")
-            continue
-
-        elif choice == "i":
-            # Inference
-            print("\n--- Corridor Key Inference ---")
-            run_inference(ready, device=device)
-            input("Inference batch complete. Press Enter to Re-Scan...")
-            continue
-
-        elif choice == "r":
-            print("\nRe-scanning...")
-            continue
-
-        elif choice == "q":
-            break
-
-        else:
-            print("Invalid selection.")
-            continue
-
-    print("\nWizard Complete. Goodbye!")
-
-
-def scan_clips():
+def scan_clips() -> list[ClipEntry]:
     if not os.path.exists(CLIPS_DIR):
         os.makedirs(CLIPS_DIR, exist_ok=True)
         return []
@@ -1145,34 +915,3 @@ def scan_clips():
         print("\nAll clip folders appear valid.\n")
 
     return valid_clips
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="CorridorKey Clip Manager")
-    parser.add_argument("--action", choices=["generate_alphas", "run_inference", "list", "wizard"], required=True)
-    parser.add_argument("--win_path", help=r"Windows Path (example: V:\...) for Wizard Mode", default=None)
-    parser.add_argument(
-        "--device",
-        choices=["auto", "cuda", "mps", "cpu"],
-        default="auto",
-        help="Compute device (default: auto-detect CUDA > MPS > CPU)",
-    )
-
-    args = parser.parse_args()
-
-    device = resolve_device(args.device)
-    logger.info(f"Using device: {device}")
-
-    if args.action == "list":
-        scan_clips()
-    elif args.action == "generate_alphas":
-        clips = scan_clips()
-        generate_alphas(clips, device=device)
-    elif args.action == "run_inference":
-        clips = scan_clips()
-        run_inference(clips, device=device)
-    elif args.action == "wizard":
-        if not args.win_path:
-            print("Error: --win_path required for wizard.")
-        else:
-            interactive_wizard(args.win_path, device=device)

@@ -54,10 +54,8 @@ def map_path(win_path: str) -> str:
     if win_path.upper().startswith(WIN_DRIVE_ROOT.upper()):
         # Remove drive letter
         rel_path = win_path[len(WIN_DRIVE_ROOT) :]
-        # Flip slashes
-        rel_path = rel_path.replace("\\", "/")
-        # Combine
-        linux_path = os.path.join(LINUX_MOUNT_ROOT, rel_path)
+        # Combine and flip slashes
+        linux_path = os.path.join(LINUX_MOUNT_ROOT, rel_path).replace("\\", "/")
         return linux_path
 
     # If not on V:, maybe it's already a linux path or invalid?

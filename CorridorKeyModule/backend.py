@@ -30,14 +30,14 @@ def resolve_backend(requested: str | None = None) -> str:
 
     Raises RuntimeError if explicit backend is unavailable.
     """
-    backend = requested
-    if backend is None or backend == "auto":
-        backend = os.environ.get(BACKEND_ENV_VAR, "auto")
+    if requested is None or requested.lower() == "auto":
+        backend = os.environ.get(BACKEND_ENV_VAR, "auto").lower()
+    else:
+        backend = requested.lower()
 
     if backend == "auto":
         return _auto_detect_backend()
 
-    backend = backend.lower()
     if backend not in VALID_BACKENDS:
         raise RuntimeError(f"Unknown backend '{backend}'. Valid: {', '.join(VALID_BACKENDS)}")
 

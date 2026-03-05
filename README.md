@@ -65,7 +65,16 @@ This project uses **[uv](https://docs.astral.sh/uv/)** to manage Python and all 
     *   **GVM Weights (Optional):** [HuggingFace: geyongtao/gvm](https://huggingface.co/geyongtao/gvm)
         *   Download using the CLI: `uv run hf download geyongtao/gvm --local-dir gvm_core/weights`
     *   **VideoMaMa Weights (Optional):** [HuggingFace: SammyLim/VideoMaMa](https://huggingface.co/SammyLim/VideoMaMa)
-        *   Download using the CLI: `uv run hf download SammyLim/VideoMaMa --local-dir VideoMaMaInferenceModule/checkpoints`
+        *   Download the VideoMaMa fine-tuned weights:
+            ```
+            uv run hf download SammyLim/VideoMaMa --local-dir VideoMaMaInferenceModule/checkpoints/VideoMaMa
+            ```
+        *   VideoMaMa also requires the Stable Video Diffusion base model (VAE + image encoder only, ~2.5GB). Accept the license at [stabilityai/stable-video-diffusion-img2vid-xt](https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt), then:
+            ```
+            uv run hf download stabilityai/stable-video-diffusion-img2vid-xt \
+              --local-dir VideoMaMaInferenceModule/checkpoints/stable-video-diffusion-img2vid-xt \
+              --include "feature_extractor/*" "image_encoder/*" "vae/*" "model_index.json"
+            ```
 
 ### 2. How it Works
 

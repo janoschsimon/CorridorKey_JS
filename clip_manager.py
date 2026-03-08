@@ -324,7 +324,8 @@ def run_videomama(clips: list[ClipEntry], chunk_size: int = 50, device: str | No
     # uses intra-package imports that assume its directory is on the path.
     try:
         sys.path.append(os.path.join(BASE_DIR, "VideoMaMaInferenceModule"))
-        from VideoMaMaInferenceModule.inference import load_videomama_model, run_inference as run_videomama_frames
+        from VideoMaMaInferenceModule.inference import load_videomama_model
+        from VideoMaMaInferenceModule.inference import run_inference as run_videomama_frames
     except ImportError as e:
         logger.error(f"Failed to import VideoMaMa: {e}")
         return

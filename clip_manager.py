@@ -516,12 +516,12 @@ def run_inference(clips, device=None, backend=None, max_frames=None):
         logger.info("User selected: sRGB Input (or default)")
 
     # 2. Despill Prompt
-    despill_val = input("Enter Despill Strength (0-10, 10 is max despill) [default 10]: ").strip()
+    despill_val = input("Enter Despill Strength (0-10, 10 is max despill) [default 5]: ").strip()
     try:
         despill_int = int(despill_val)
         despill_int = max(0, min(10, despill_int))
     except ValueError:
-        despill_int = 10
+        despill_int = 5
 
     despill_strength = despill_int / 10.0
     logger.info(f"User selected: Despill Strength {despill_int}/10 ({despill_strength})")

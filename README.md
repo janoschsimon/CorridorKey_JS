@@ -32,6 +32,7 @@ Naturally, I have not tested everything. If you encounter errors, please conside
 This project was designed and built on a Linux workstation (Puget Systems PC) equipped with an NVIDIA RTX Pro 6000 with 96GB of VRAM. This project is not yet optimized for sub 24 gig VRAM systems, but with the help of the community, maybe we can make that happen.
 
 *   **CorridorKey:** Running inference natively at 2048x2048 requires approximately **22.7 GB of VRAM**. You will need at least a 24GB GPU (such as a 3090, 4090, 5090, etc). It is highly recommended to run this on a secondary GPU that is not driving your OS/displays, or on a rented cloud instance (like Runpod or Google Colab) to avoid Out-Of-Memory errors.
+    *   **Windows Users:** To run GPU acceleration natively on Windows, your system MUST have NVIDIA drivers that support **CUDA 12.6 or higher** installed. If your drivers only support older CUDA versions, the installer will likely fallback to the CPU.
 *   **GVM (Optional):** Requires approximately **80 GB of VRAM** and utilizes massive Stable Video Diffusion models.
 *   **VideoMaMa (Optional):** Natively requires a massive chunk of VRAM as well (originally 80GB+). While the community has tweaked the architecture to run at less than 24GB, those extreme memory optimizations have not yet been fully implemented in this repository.
 

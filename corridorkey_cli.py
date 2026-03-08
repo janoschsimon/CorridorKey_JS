@@ -52,35 +52,42 @@ def interactive_wizard(win_path: str, device: str | None = None) -> None:
     print(" CORRIDOR KEY - SMART WIZARD")
     print("=" * 60)
 
-    # 1. Map Path
-    linux_path = map_path(win_path)
+    # 1. Resolve Path
     print(f"Windows Path: {win_path}")
-    print(f"Linux Path:   {linux_path}")
+    
+    # Check if we are running locally where the Windows path exists
+    if os.path.exists(win_path):
+        process_path = win_path
+        print(f"Running locally dynamically using path: {process_path}")
+    else:
+        # Fallback to mapping for remote linux execution
+        process_path = map_path(win_path)
+        print(f"Linux/Remote Path:   {process_path}")
 
-    if not os.path.exists(linux_path):
-        print("\n[ERROR] Path does not exist on Linux mount!")
-        print(f"Expected: {LINUX_MOUNT_ROOT}")
-        return
+        if not os.path.exists(process_path):
+            print("\n[ERROR] Path does not exist locally OR on Linux mount!")
+            print(f"Expected Linux Mount Root: {LINUX_MOUNT_ROOT}")
+            return
 
     # 2. Analyze
-    # We treat linux_path as the ROOT containing SHOTS
-    # Or is linux_path the SHOT itself?
+    # We treat process_path as the ROOT containing SHOTS
+    # Or is process_path the SHOT itself?
     # HEURISTIC: If it contains "Input", it's a shot. If it contains folders, it's a project.
 
     # Let's assume it's a folder containing CLIPS (Batch Mode)
     # But if the user drops it IN a shot folder, we should handle that too.
 
     target_is_shot = False
-    if os.path.exists(os.path.join(linux_path, "Input")) or glob.glob(os.path.join(linux_path, "Input.*")):
+    if os.path.exists(os.path.join(process_path, "Input")) or glob.glob(os.path.join(process_path, "Input.*")):
         target_is_shot = True
 
     work_dirs = []
     if target_is_shot:
-        work_dirs = [linux_path]
+        work_dirs = [process_path]
     else:
         # Scan subfolders
         work_dirs = [
-            os.path.join(linux_path, d) for d in os.listdir(linux_path) if os.path.isdir(os.path.join(linux_path, d))
+            os.path.join(process_path, d) for d in os.listdir(process_path) if os.path.isdir(os.path.join(process_path, d))
         ]
         # Filter out output/hints
         work_dirs = [
@@ -93,7 +100,7 @@ def interactive_wizard(win_path: str, device: str | None = None) -> None:
 
     # Check for loose videos in root
     loose_videos = [
-        f for f in os.listdir(linux_path) if is_video_file(f) and os.path.isfile(os.path.join(linux_path, f))
+        f for f in os.listdir(process_path) if is_video_file(f) and os.path.isfile(os.path.join(process_path, f))
     ]
 
     # Check if existing folders need organization
@@ -130,7 +137,7 @@ def interactive_wizard(win_path: str, device: str | None = None) -> None:
             for v in loose_videos:
                 clip_name = os.path.splitext(v)[0]
                 ext = os.path.splitext(v)[1]
-                target_folder = os.path.join(linux_path, clip_name)
+                target_folder = os.path.join(process_path, clip_name)
 
                 if os.path.exists(target_folder):
                     logger.warning(f"Skipping loose video '{v}': Target folder '{clip_name}' already exists.")
@@ -139,7 +146,7 @@ def interactive_wizard(win_path: str, device: str | None = None) -> None:
                 try:
                     os.makedirs(target_folder)
                     target_file = os.path.join(target_folder, f"Input{ext}")
-                    shutil.move(os.path.join(linux_path, v), target_file)
+                    shutil.move(os.path.join(process_path, v), target_file)
                     logger.info(f"Organized: Moved '{v}' to '{clip_name}/Input{ext}'")
 
                     # Also initialize hints immediately
@@ -158,9 +165,9 @@ def interactive_wizard(win_path: str, device: str | None = None) -> None:
             # If it wasn't a shot, we re-scan subdirs
             if not target_is_shot:
                 work_dirs = [
-                    os.path.join(linux_path, d)
-                    for d in os.listdir(linux_path)
-                    if os.path.isdir(os.path.join(linux_path, d))
+                    os.path.join(process_path, d)
+                    for d in os.listdir(process_path)
+                    if os.path.isdir(os.path.join(process_path, d))
                 ]
                 work_dirs = [
                     d for d in work_dirs if os.path.basename(d) not in ["Output", "AlphaHint", "VideoMamaMaskHint"]

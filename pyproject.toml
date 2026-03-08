@@ -85,3 +85,12 @@ omit = [
     "tests/*",
     "test_vram.py",  # manual GPU smoke test, not part of the pytest suite
 ]
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
+torchvision = { index = "pytorch" }

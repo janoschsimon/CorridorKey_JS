@@ -45,3 +45,4 @@ VideoMaMaInferenceModule/checkpoints/*
 !VideoMaMaInferenceModule/checkpoints/.gitkeep
 gvm_core/weights/*
 !gvm_core/weights/.gitkeep
+footage/

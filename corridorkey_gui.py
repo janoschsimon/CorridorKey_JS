@@ -60,11 +60,11 @@ class CorridorKeyGUI:
         hint_frame.grid(row=2, column=0, columnspan=2, sticky="ew", **pad)
 
         ttk.Label(hint_frame, text="Dilate (px):").grid(row=0, column=0, sticky="w")
-        self.dilate_var = tk.IntVar(value=15)
+        self.dilate_var = tk.IntVar(value=70)
         ttk.Spinbox(hint_frame, from_=0, to=100, textvariable=self.dilate_var, width=5).grid(row=0, column=1, sticky="w", padx=(5, 20))
 
         ttk.Label(hint_frame, text="Blur (px):").grid(row=0, column=2, sticky="w")
-        self.blur_var = tk.IntVar(value=31)
+        self.blur_var = tk.IntVar(value=20)
         ttk.Spinbox(hint_frame, from_=0, to=200, textvariable=self.blur_var, width=5).grid(row=0, column=3, sticky="w", padx=(5, 0))
 
         self.hint_info = ttk.Label(hint_frame, text="Auto-generated from MP4 via chroma key + MatAnyone2", foreground="gray")

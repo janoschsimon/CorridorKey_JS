@@ -107,6 +107,8 @@ def run(args):
 
     # 4. MatAnyone2 inference
     os.makedirs(args.output, exist_ok=True)
+    if args.export_input:
+        os.makedirs(args.export_input, exist_ok=True)
     print(f"[AlphaHint] Running MatAnyone2 on {length - n_warmup} frames...")
 
     frame_idx = 0
@@ -132,9 +134,13 @@ def run(args):
 
         # 5. Coarsen for CorridorKey
         pha_coarse = coarsen_mask(pha_u8, dilate_px=args.dilate, blur_px=args.blur)
+        cv2.imwrite(os.path.join(args.output, f"{frame_idx:04d}.png"), pha_coarse)
 
-        out_path = os.path.join(args.output, f"{frame_idx:04d}.png")
-        cv2.imwrite(out_path, pha_coarse)
+        # 6. Optionally export input frame as PNG
+        if args.export_input:
+            frame_bgr = image.permute(1, 2, 0).numpy().astype(np.uint8)[..., ::-1]
+            cv2.imwrite(os.path.join(args.export_input, f"{frame_idx:04d}.png"), frame_bgr)
+
         frame_idx += 1
 
     print(f"[AlphaHint] Done! {frame_idx} frames saved to: {args.output}")
@@ -148,5 +154,6 @@ if __name__ == "__main__":
     parser.add_argument("--blur", type=int, default=31, help="Gaussian blur radius on output alpha (px). Default: 31")
     parser.add_argument("--hsv-lower", type=int, nargs=3, default=[35, 40, 40], metavar=("H", "S", "V"), help="HSV lower bound for green. Default: 35 40 40")
     parser.add_argument("--hsv-upper", type=int, nargs=3, default=[90, 255, 255], metavar=("H", "S", "V"), help="HSV upper bound for green. Default: 90 255 255")
+    parser.add_argument("--export-input", type=str, default=None, help="If set, also save input frames as PNG sequence to this folder")
     args = parser.parse_args()
     run(args)

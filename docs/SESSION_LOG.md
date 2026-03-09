@@ -21,5 +21,30 @@
 
 ### Nächste Schritte
 - Workflow mit Garbage Matte in Resolve vor SAM3 testen
-- GUI planen und bauen
-- SAM3 Batching für längere Clips lösen
+- GUI weiter verfeinern
+- Längere Clips testen
+
+---
+
+## 2026-03-09 — Session 1 (Fortsetzung): GUI gebaut & weitere Tests
+
+### Was gemacht wurde
+- `run_inference_direct.py` gebaut — bypassed interactive input() Prompts via CLI Args
+- `corridorkey_gui.py` gebaut — tkinter GUI mit Ordner-Auswahl, Settings, Progressbar, Log, Kill-on-close
+- `CorridorKey_GUI.bat` — Doppelklick-Launcher
+- Bug gefixt: stdout-Pipe-Deadlock → stdout in separatem Thread lesen
+- Bug gefixt: alle Clips wurden verarbeitet → `--shot` Flag damit nur neuer Clip läuft
+- Zweiter Testrun: 135 Frames Actiontest ✅
+- Dritter Testrun: 242 Frames ✅ — Speicher wird direkt freigegeben
+- Nico von Corridor hat ComfyUI Screenshot mit 🔥 kommentiert
+- SAM3 Text-Prompt Workflow bestätigt: "person", "ball", etc. funktioniert perfekt
+
+### Erkenntnisse
+- SAM3 mit Text-Prompt ist mächtiger als GVM (hat Kontrolle, braucht kaum VRAM)
+- GUI Kill-on-close funktioniert — kein Zombie-Prozess mehr
+- Inference braucht ~8 GB VRAM nach Model-Load (23 GB), Speicher nach dem Run direkt frei
+
+### Nächste Schritte
+- Garbage Matte Workflow in Resolve testen
+- Längere Clips / Red Komodo RAW testen
+- GUI weiter polish (z.B. Output-Ordner direkt öffnen nach Fertigstellung)

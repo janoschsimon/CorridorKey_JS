@@ -1,5 +1,9 @@
 # CorridorKey — CLAUDE.md
 
+> **ICH, Claude Code, Flöte vom Dienst, habe dieses Tool NICHT geschrieben und werde KEINE Annahmen machen oder Halluzinationen produzieren!!!!!!!!!!!**
+
+---
+
 ## Project
 AI-powered greenscreen keyer by Corridor Digital. Neural net separates foreground + alpha from greenscreen footage. Requires a coarse Alpha Hint mask as input.
 
@@ -34,7 +38,9 @@ ClipsForInference/
 
 ## Alpha Hint Generation
 - GVM (80 GB VRAM) and VideoMaMa (80 GB) are NOT usable on this machine
-- **Current workflow:** SAM3 in ComfyUI → GrowMask (+50px) → export as PNG sequence
+- **Confirmed workflow: SAM3 in ComfyUI → rohe Maske, KEIN GrowMask!**
+- GrowMask macht Maske größer/schärfer → FALSCH, Modell erwartet coarse/blurry/eroded Masken
+- GrowMask 0px = schneller + bessere Ergebnisse
 - Better workflow idea: Garbage matte in Resolve first → then SAM3
 - SAM3 limit: 240 frames max per run → batching needed for longer clips
 

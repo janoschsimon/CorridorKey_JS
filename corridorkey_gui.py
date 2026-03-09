@@ -187,17 +187,16 @@ class CorridorKeyGUI:
             env = os.environ.copy()
             env["PYTHONUNBUFFERED"] = "1"
             gamma = "s" if self.gamma_var.get() == "sRGB" else "l"
+            despill = str(self.despill_var.get())
+            despeckle = "y" if self.despeckle_var.get() else "n"
+            despeckle_size = str(self.despeckle_size_var.get())
+            refiner = f"{self.refiner_var.get():.1f}"
+            stdin_input = "\n".join([gamma, despill, despeckle, despeckle_size, refiner]) + "\n"
+
             proc = subprocess.Popen(
-                [
-                    uv_path, "run", "python", "-u", "run_inference_direct.py",
-                    "--gamma", gamma,
-                    "--despill", str(self.despill_var.get()),
-                    "--despeckle", "1" if self.despeckle_var.get() else "0",
-                    "--despeckle_size", str(self.despeckle_size_var.get()),
-                    "--refiner", f"{self.refiner_var.get():.1f}",
-                    "--shot", os.path.basename(shot_path),
-                ],
+                [uv_path, "run", "python", "-u", "clip_manager.py", "--action", "run_inference", "--shot", os.path.basename(shot_path)],
                 cwd=BASE_DIR,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -206,8 +205,17 @@ class CorridorKeyGUI:
             self._proc = proc
             self._log(f"Started PID {proc.pid} — loading model (~30s)...")
 
-            # Read stdout in background thread to prevent pipe buffer deadlock
+            # Write stdin and read stdout in background threads (avoid deadlock)
             import time
+
+            def write_stdin():
+                try:
+                    proc.stdin.write(stdin_input)
+                    proc.stdin.flush()
+                    proc.stdin.close()
+                except Exception:
+                    pass
+            threading.Thread(target=write_stdin, daemon=True).start()
 
             def read_stdout():
                 for line in proc.stdout:

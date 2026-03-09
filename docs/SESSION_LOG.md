@@ -48,3 +48,20 @@
 - Garbage Matte Workflow in Resolve testen
 - Längere Clips / Red Komodo RAW testen
 - GUI weiter polish (z.B. Output-Ordner direkt öffnen nach Fertigstellung)
+
+---
+
+## 2026-03-09 — Session 1 (Teil 3): Mask Workflow Research
+
+### Erkenntnisse (WICHTIG)
+- **GrowMask = FALSCH!** Modell erwartet coarse/blurry Masken, GrowMask macht sie zu groß/scharf
+- **SAM3 roh (0px Grow)** = bester Workflow für saubere Footage
+- **RMBG** keyt schon fertig → nicht geeignet als Hint (zu sauber, Greenscreen weg)
+- Optimale Hint: knapp größer als Subjekt, Greenscreen-Rand noch sichtbar
+- Bei löchriger SAM3 Maske (Linda RED Komodo): fehlende Körperteile = fehlendes Ergebnis
+- run_inference_direct.py hat Bugs → GUI nutzt jetzt wieder clip_manager.py
+
+### Nächste Schritte
+- RMBG + kleiner Grow (10-15px) als Alternative zu SAM3 testen
+- Linda RED Komodo Workflow lösen (löchrige Maske Problem)
+- GUI Mask-Fill Feature einbauen

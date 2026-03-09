@@ -906,6 +906,12 @@ if __name__ == "__main__":
         default=None,
         help="Limit number of frames to process per clip (e.g. 1 for first frame only)",
     )
+    parser.add_argument(
+        "--shot",
+        type=str,
+        default=None,
+        help="Only process this specific shot folder name (e.g. 2026.03.09_myshot)",
+    )
 
     args = parser.parse_args()
 
@@ -919,6 +925,8 @@ if __name__ == "__main__":
         generate_alphas(clips, device=device)
     elif args.action == "run_inference":
         clips = scan_clips()
+        if args.shot:
+            clips = [c for c in clips if c.name == args.shot]
         run_inference(clips, device=device, backend=args.backend, max_frames=args.max_frames)
     elif args.action == "wizard":
         if not args.win_path:

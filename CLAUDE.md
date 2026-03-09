@@ -38,11 +38,13 @@ ClipsForInference/
 
 ## Alpha Hint Generation
 - GVM (80 GB VRAM) and VideoMaMa (80 GB) are NOT usable on this machine
-- **Confirmed workflow: SAM3 in ComfyUI → rohe Maske, KEIN GrowMask!**
-- GrowMask macht Maske größer/schärfer → FALSCH, Modell erwartet coarse/blurry/eroded Masken
-- GrowMask 0px = schneller + bessere Ergebnisse
-- Better workflow idea: Garbage matte in Resolve first → then SAM3
-- SAM3 limit: 240 frames max per run → batching needed for longer clips
+- **Current workflow: `generate_alpha_hints.py` — fully automatic, no ComfyUI needed!**
+  - Auto chroma key for frame 1 → MatAnyone2 propagates through clip → dilate+blur → AlphaHint
+  - Runs under `MatAnyone2/.venv/Scripts/python.exe generate_alpha_hints.py -i <video> -o <AlphaHint/>`
+  - MatAnyone2 located at `MatAnyone2/` (subdir), model auto-downloads on first run (135 MB)
+- Model expects **coarse/blurry/eroded** masks — NOT sharp/precise
+  - Output is dilated (~15px) + gaussian blurred (~31px) for this reason
+- Old workflow (kept as fallback): SAM3 in ComfyUI, KEIN GrowMask, GrowMask 0px
 
 ## Color Space Rules (DO NOT BREAK)
 - Model input/output: `[0.0, 1.0]` float, assumes sRGB input
@@ -53,6 +55,8 @@ ClipsForInference/
 
 ## Key Files
 - `clip_manager.py` — main CLI, scan/config/inference loop
+- `generate_alpha_hints.py` — auto AlphaHint generator (chroma key → MatAnyone2 → coarsen)
+- `corridorkey_gui.py` — tkinter GUI frontend
 - `CorridorKeyModule/inference_engine.py` — `CorridorKeyEngine`, `process_frame()`
 - `CorridorKeyModule/core/model_transformer.py` — GreenFormer architecture
 - `CorridorKeyModule/core/color_utils.py` — sRGB/linear math, despill

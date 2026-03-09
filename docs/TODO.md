@@ -20,8 +20,12 @@
   - Red Komodo RAW Pipeline (color space handling)
 
 - [ ] **Alpha Hint Qualität verbessern**
-  - GrowMask Wert optimieren (aktuell 50px, testen mit 80-120px)
-  - Garbage Matte davor schalten für sauberere Hints
+  - MatAnyone2 dilate/blur Parameter auf echtem Material optimieren
+  - Garbage Matte in Resolve davor schalten für sauberere Frame-1-Maske
+
+- [ ] **MatAnyone2 in GUI integrieren**
+  - `generate_alpha_hints.py` unter der Haube aufrufen
+  - Input: MP4 → AlphaHint automatisch generieren, dann direkt CorridorKey starten
 
 - [ ] **Inference beschleunigen**
   - Aktuell: frame-by-frame, kein Batching auf GPU
@@ -31,14 +35,14 @@
 
 - [ ] Resolve-Integration (OTIO, EDL, oder DaVinci Scripting API)
 - [ ] Direkter ComfyUI-Node für CorridorKey
-- [ ] Automatisches Hint-Generieren mit leichteren Alternativen zu GVM/VideoMaMa
 
 ## Done ✅
 
-- [x] Dependencies installiert (PyTorch 2.10 + CUDA 12.6)
+- [x] Dependencies installiert (PyTorch 2.10 + CUDA 12.8)
 - [x] CorridorKey.pth Model geladen (383 MB)
 - [x] Erster Testlauf erfolgreich — 240 Frames Candice Greenscreen
-- [x] SAM3 als Alpha Hint Workflow etabliert
+- [x] SAM3 als Alpha Hint Workflow etabliert (veraltet, ersetzt durch MatAnyone2)
 - [x] GUI gebaut (corridorkey_gui.py + CorridorKey_GUI.bat)
 - [x] run_inference_direct.py — bypasses interactive prompts, CLI args
 - [x] Kill-on-close implementiert in GUI
+- [x] MatAnyone2 als vollautomatischer AlphaHint-Generator (generate_alpha_hints.py)

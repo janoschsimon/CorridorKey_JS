@@ -17,7 +17,13 @@ logger = logging.getLogger(__name__)
 
 class CorridorKeyEngine:
     def __init__(
-        self, checkpoint_path: str, device: str = "cpu", img_size: int = 2048, use_refiner: bool = True
+        self,
+        checkpoint_path: str,
+        device: str = "cpu",
+        img_size: int = 2048,
+        use_refiner: bool = True,
+        mixed_precision: bool = True,
+        model_precision: torch.dtype = torch.float32,
     ) -> None:
         self.device = torch.device(device)
         self.img_size = img_size
@@ -27,7 +33,20 @@ class CorridorKeyEngine:
         self.mean = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 1, 3)
         self.std = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 1, 3)
 
-        self.model = self._load_model()
+        if mixed_precision or model_precision != torch.float32:
+            # Use faster matrix multiplication implementation
+            # This reduces the floating point precision a little bit,
+            # but it should be negligible compared to fp16 precision
+            torch.set_float32_matmul_precision("high")
+
+        self.mixed_precision = mixed_precision
+        if mixed_precision and model_precision == torch.float16:
+            # using mixed precision, when the precision is already fp16, is slower
+            self.mixed_precision = False
+
+        self.model_precision = model_precision
+
+        self.model = self._load_model().to(model_precision)
 
     def _load_model(self) -> GreenFormer:
         logger.info("Loading CorridorKey from %s", self.checkpoint_path)
@@ -86,7 +105,7 @@ class CorridorKeyEngine:
 
         return model
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def process_frame(
         self,
         image: np.ndarray,
@@ -152,7 +171,7 @@ class CorridorKeyEngine:
 
         # 4. Prepare Tensor
         inp_np = np.concatenate([img_norm, mask_resized], axis=-1)  # [H, W, 4]
-        inp_t = torch.from_numpy(inp_np.transpose((2, 0, 1))).float().unsqueeze(0).to(self.device)
+        inp_t = torch.from_numpy(inp_np.transpose((2, 0, 1))).unsqueeze(0).to(self.model_precision).to(self.device)
 
         # 5. Inference
         # Hook for Refiner Scaling
@@ -164,7 +183,7 @@ class CorridorKeyEngine:
 
             handle = self.model.refiner.register_forward_hook(scale_hook)
 
-        with torch.autocast(device_type=self.device.type, dtype=torch.float16):
+        with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.mixed_precision):
             out = self.model(inp_t)
 
         if handle:

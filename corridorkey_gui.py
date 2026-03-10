@@ -12,6 +12,9 @@ import tkinter as tk
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
+# Must be set before cv2 is imported anywhere in this process
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CLIPS_DIR = os.path.join(BASE_DIR, "ClipsForInference")
 MATANYONE2_PYTHON = os.path.join(BASE_DIR, "MatAnyone2", ".venv", "Scripts", "python.exe")
@@ -30,6 +33,7 @@ class CorridorKeyGUI:
         self.root.title("CorridorKey")
         self.root.resizable(False, False)
         self._proc = None
+        self._input_type = "video"  # "video" | "exr" | "manual_shot"
         self._build_ui()
 
     def _build_ui(self):
@@ -67,8 +71,14 @@ class CorridorKeyGUI:
         self.blur_var = tk.IntVar(value=20)
         ttk.Spinbox(hint_frame, from_=0, to=200, textvariable=self.blur_var, width=5).grid(row=0, column=3, sticky="w", padx=(5, 0))
 
+        self.reverse_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(hint_frame, text="Reverse (person on last frame)", variable=self.reverse_var).grid(row=1, column=0, columnspan=2, sticky="w", pady=(5, 0))
+
+        self.sam_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(hint_frame, text="SAM (no greenscreen)", variable=self.sam_var).grid(row=1, column=2, columnspan=2, sticky="w", pady=(5, 0))
+
         self.hint_info = ttk.Label(hint_frame, text="Auto-generated from MP4 via chroma key + MatAnyone2", foreground="gray")
-        self.hint_info.grid(row=1, column=0, columnspan=4, sticky="w", pady=(5, 0))
+        self.hint_info.grid(row=2, column=0, columnspan=4, sticky="w")
 
         # --- Settings ---
         settings_frame = ttk.LabelFrame(self.root, text="CorridorKey Settings", padding=10)
@@ -140,20 +150,71 @@ class CorridorKeyGUI:
         if not path:
             return
         self.input_var.set(path)
+        self._input_type = "video"
         self.hint_info.config(text="Auto-generated from MP4 via chroma key + MatAnyone2", foreground="gray")
-        self.info_label.config(text="✓  MP4 selected — AlphaHint will be auto-generated", foreground="green")
+        self.info_label.config(text="Analyzing...", foreground="gray")
+        threading.Thread(target=self._analyze_video, args=(path,), daemon=True).start()
+
+    def _analyze_video(self, path):
+        try:
+            import cv2 as _cv2
+            cap = _cv2.VideoCapture(path)
+            frames = int(cap.get(_cv2.CAP_PROP_FRAME_COUNT))
+            w = int(cap.get(_cv2.CAP_PROP_FRAME_WIDTH))
+            h = int(cap.get(_cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = cap.get(_cv2.CAP_PROP_FPS)
+            cap.release()
+            info = f"{os.path.basename(path)} — {w}x{h}, {frames} frames @ {fps:.2f} fps, sRGB"
+            self.root.after(0, lambda: self.info_label.config(text=f"Video: {info}", foreground="green"))
+        except Exception as e:
+            self.root.after(0, lambda: self.info_label.config(text=f"Video selected (analysis failed: {e})", foreground="green"))
 
     def _browse_folder(self):
-        folder = filedialog.askdirectory(title="Select folder with Input frames (no auto-hint)")
+        folder = filedialog.askdirectory(title="Select footage folder (EXR sequence, PNG frames, or shot folder)")
         if not folder:
             return
         self.input_var.set(folder)
-        frames = [f for f in os.listdir(folder) if is_image_file(f)]
-        self.info_label.config(
-            text=f"✓  {len(frames)} image frames detected (manual AlphaHint mode)",
-            foreground="green" if frames else "orange"
-        )
-        self.hint_info.config(text="⚠  Folder mode: AlphaHint/ must exist alongside Input/ manually", foreground="orange")
+        self.info_label.config(text="Analyzing...", foreground="gray")
+        threading.Thread(target=self._analyze_folder, args=(folder,), daemon=True).start()
+
+    def _analyze_folder(self, folder):
+        try:
+            import cv2 as _cv2
+            files = sorted(os.listdir(folder))
+            exr_files = [f for f in files if f.lower().endswith(".exr")]
+
+            if exr_files:
+                img = _cv2.imread(os.path.join(folder, exr_files[0]), _cv2.IMREAD_UNCHANGED)
+                h, w = img.shape[:2] if img is not None else (0, 0)
+                info = f"EXR sequence: {len(exr_files)} frames, {w}x{h}, Linear float32"
+                self.root.after(0, lambda: [
+                    self.info_label.config(text=f"EXR: {info} — AlphaHint auto-generated", foreground="green"),
+                    self.hint_info.config(text="EXR mode: linear ratio chroma key, Input/ exported as linear EXR", foreground="gray"),
+                    self.gamma_var.set("Linear"),
+                ])
+                self._input_type = "exr"
+                return
+
+            if os.path.isdir(os.path.join(folder, "Input")):
+                input_files = [f for f in os.listdir(os.path.join(folder, "Input")) if is_image_file(f)]
+                self.root.after(0, lambda: [
+                    self.info_label.config(text=f"Shot folder: {len(input_files)} Input frames (manual mode)", foreground="green"),
+                    self.hint_info.config(text="Manual mode: AlphaHint/ must exist alongside Input/", foreground="orange"),
+                ])
+                self._input_type = "manual_shot"
+                return
+
+            img_files = [f for f in files if is_image_file(f)]
+            if img_files:
+                self.root.after(0, lambda: self.info_label.config(
+                    text=f"{len(img_files)} image frames — manual AlphaHint mode", foreground="orange"
+                ))
+                self._input_type = "manual_shot"
+            else:
+                self.root.after(0, lambda: self.info_label.config(text="No recognized frames found", foreground="red"))
+        except Exception as e:
+            err = str(e)
+            self.root.after(0, lambda: self.info_label.config(text=f"Analysis error: {err}", foreground="red"))
 
     def _start(self):
         input_path = self.input_var.get().strip()
@@ -169,7 +230,7 @@ class CorridorKeyGUI:
         self.progress_label.config(text="Starting...", foreground="blue")
         self.root.update()
 
-        is_video = input_path.lower().endswith(VIDEO_EXTS)
+        is_video = input_path.lower().endswith(VIDEO_EXTS) or self._input_type == "exr"
         threading.Thread(target=self._run, args=(input_path, shot_name, is_video), daemon=True).start()
 
     def _run(self, input_path, shot_name, is_video):
@@ -199,6 +260,10 @@ class CorridorKeyGUI:
                     "--dilate", str(self.dilate_var.get()),
                     "--blur", str(self.blur_var.get()),
                 ]
+                if self.reverse_var.get():
+                    cmd.append("--reverse")
+                if self.sam_var.get():
+                    cmd.append("--sam")
                 env = os.environ.copy()
                 env["PYTHONUNBUFFERED"] = "1"
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)

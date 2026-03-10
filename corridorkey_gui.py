@@ -19,6 +19,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CLIPS_DIR = os.path.join(BASE_DIR, "ClipsForInference")
 MATANYONE2_PYTHON = os.path.join(BASE_DIR, "MatAnyone2", ".venv", "Scripts", "python.exe")
 GENERATE_HINTS_SCRIPT = os.path.join(BASE_DIR, "generate_alpha_hints.py")
+MASK_PAINTER_SCRIPT = os.path.join(BASE_DIR, "mask_painter.py")
 
 VIDEO_EXTS = (".mp4", ".mov", ".avi")
 
@@ -64,11 +65,11 @@ class CorridorKeyGUI:
         hint_frame.grid(row=2, column=0, columnspan=2, sticky="ew", **pad)
 
         ttk.Label(hint_frame, text="Dilate (px):").grid(row=0, column=0, sticky="w")
-        self.dilate_var = tk.IntVar(value=70)
+        self.dilate_var = tk.IntVar(value=10)
         ttk.Spinbox(hint_frame, from_=0, to=100, textvariable=self.dilate_var, width=5).grid(row=0, column=1, sticky="w", padx=(5, 20))
 
         ttk.Label(hint_frame, text="Blur (px):").grid(row=0, column=2, sticky="w")
-        self.blur_var = tk.IntVar(value=20)
+        self.blur_var = tk.IntVar(value=5)
         ttk.Spinbox(hint_frame, from_=0, to=200, textvariable=self.blur_var, width=5).grid(row=0, column=3, sticky="w", padx=(5, 0))
 
         self.reverse_var = tk.BooleanVar(value=False)
@@ -116,25 +117,18 @@ class CorridorKeyGUI:
         self.progress_label = ttk.Label(progress_frame, text="Ready", foreground="gray")
         self.progress_label.grid(row=1, column=0, sticky="w", pady=(5, 0))
 
-        # --- Log ---
-        log_frame = ttk.LabelFrame(self.root, text="Log", padding=10)
-        log_frame.grid(row=5, column=0, columnspan=2, sticky="ew", **pad)
-
-        self.log_text = tk.Text(log_frame, height=8, width=68, state="disabled", bg="#1e1e1e", fg="#d4d4d4", font=("Consolas", 9))
-        self.log_text.grid(row=0, column=0, sticky="ew")
-        scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.log_text.yview)
-        scrollbar.grid(row=0, column=1, sticky="ns")
-        self.log_text.config(yscrollcommand=scrollbar.set)
-
         # --- Buttons ---
         btn_frame = ttk.Frame(self.root)
-        btn_frame.grid(row=6, column=0, columnspan=2, pady=15)
+        btn_frame.grid(row=5, column=0, columnspan=2, pady=15)
 
         self.start_btn = ttk.Button(btn_frame, text="▶  Start", command=self._start)
         self.start_btn.grid(row=0, column=0, ipadx=20, ipady=5, padx=5)
 
+        self.paint_btn = ttk.Button(btn_frame, text="Paint Mask", command=self._paint_mask)
+        self.paint_btn.grid(row=0, column=1, ipadx=10, ipady=5, padx=5)
+
         self.open_btn = ttk.Button(btn_frame, text="Open Output Folder", command=self._open_output, state="disabled")
-        self.open_btn.grid(row=0, column=1, ipadx=10, ipady=5, padx=5)
+        self.open_btn.grid(row=0, column=2, ipadx=10, ipady=5, padx=5)
 
         self._last_output_path = None
 
@@ -249,8 +243,8 @@ class CorridorKeyGUI:
             if is_video:
                 # Phase 1: AlphaHint generation + frame export via MatAnyone2
                 self._update_progress(0, 100, "Step 1/2 — Generating AlphaHint via MatAnyone2...", "blue")
-                self._log(f"Input: {os.path.basename(input_path)}")
-                self._log("Launching MatAnyone2...")
+                print(f"[CorridorKey] Input: {os.path.basename(input_path)}")
+                print("[CorridorKey] Launching MatAnyone2...")
 
                 cmd = [
                     MATANYONE2_PYTHON, GENERATE_HINTS_SCRIPT,
@@ -264,27 +258,24 @@ class CorridorKeyGUI:
                     cmd.append("--reverse")
                 if self.sam_var.get():
                     cmd.append("--sam")
+
                 env = os.environ.copy()
                 env["PYTHONUNBUFFERED"] = "1"
-                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+                # stdout/stderr go directly to CMD window
+                proc = subprocess.Popen(cmd, env=env)
                 self._proc = proc
-
-                def read_hints_stdout():
-                    for line in proc.stdout:
-                        self._log(line.rstrip())
-                threading.Thread(target=read_hints_stdout, daemon=True).start()
 
                 while proc.poll() is None:
                     done = len([f for f in os.listdir(alpha_dir) if is_image_file(f)]) if os.path.exists(alpha_dir) else 0
                     total = len([f for f in os.listdir(input_dir) if is_image_file(f)]) if os.path.exists(input_dir) else 1
-                    pct = min(done / max(total, 1) * 50, 50)  # phase 1 = 0–50%
+                    pct = min(done / max(total, 1) * 50, 50)
                     self._update_progress(pct, 100, f"Step 1/2 — AlphaHint: {done} frames...", "blue")
                     time.sleep(0.5)
 
                 if proc.returncode != 0:
-                    raise RuntimeError("AlphaHint generation failed. Check log.")
+                    raise RuntimeError("AlphaHint generation failed — check CMD window.")
 
-                self._log("AlphaHint generation done.")
+                print("[CorridorKey] AlphaHint generation done.")
             else:
                 # Folder mode: Input/ and AlphaHint/ must exist in the selected folder
                 import shutil
@@ -298,61 +289,131 @@ class CorridorKeyGUI:
                         if is_image_file(f):
                             shutil.copy2(os.path.join(src_alpha, f), alpha_dir)
                 else:
-                    # flat folder: copy all images as input, no alpha
                     for f in sorted(os.listdir(input_path)):
                         if is_image_file(f):
                             shutil.copy2(os.path.join(input_path, f), input_dir)
 
-            # Phase 2: CorridorKey inference — direct Python call
-            total_frames = len([f for f in os.listdir(input_dir) if is_image_file(f)])
-            self._update_progress(50, 100, f"Step 2/2 — Running CorridorKey ({total_frames} frames)...", "blue")
-            self._log(f"Starting CorridorKey inference on {total_frames} frames...")
-
-            from clip_manager import InferenceSettings, run_inference, scan_clips
-
-            settings = InferenceSettings(
-                input_is_linear=(self.gamma_var.get() == "Linear"),
-                despill_strength=self.despill_var.get() / 10.0,
-                auto_despeckle=self.despeckle_var.get(),
-                despeckle_size=self.despeckle_size_var.get(),
-                refiner_scale=self.refiner_var.get(),
-            )
-
-            clips = scan_clips()
-            clips = [c for c in clips if c.name == full_shot_name]
-            if not clips:
-                raise RuntimeError(f"Shot '{full_shot_name}' not found in ClipsForInference/.")
-
-            def on_frame_complete(i, total):
-                pct = 50 + min((i + 1) / max(total, 1) * 50, 50)
-                self._update_progress(pct, 100, f"Step 2/2 — CorridorKey: {i + 1} / {total} frames...", "blue")
-
-            run_inference(clips, settings=settings, on_frame_complete=on_frame_complete)
-
-            done = len([f for f in os.listdir(comp_dir) if is_image_file(f)]) if os.path.exists(comp_dir) else total_frames
-            self._update_progress(100, 100, f"Done! {done} frames → {full_shot_name}", "green")
-            self._log(f"✓ Finished! Output: {shot_path}")
-            self._last_output_path = shot_path
-            self.root.after(0, lambda: self.open_btn.config(state="normal"))
+            self._run_phase2(full_shot_name, shot_path, input_dir, comp_dir)
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
-            self._update_progress(0, 100, "Failed — see log", "red")
+            self._update_progress(0, 100, "Failed — check CMD window", "red")
         finally:
             self._proc = None
             self.root.after(0, lambda: self.start_btn.config(state="normal"))
 
+    def _run_phase2(self, full_shot_name, shot_path, input_dir, comp_dir):
+        """Phase 2: CorridorKey inference (shared by auto and paint-mask flows)."""
+        total_frames = len([f for f in os.listdir(input_dir) if is_image_file(f)])
+        self._update_progress(50, 100, f"Step 2/2 — Running CorridorKey ({total_frames} frames)...", "blue")
+        print(f"[CorridorKey] Starting inference on {total_frames} frames...")
+
+        from clip_manager import InferenceSettings, run_inference, scan_clips
+
+        settings = InferenceSettings(
+            input_is_linear=(self.gamma_var.get() == "Linear"),
+            despill_strength=self.despill_var.get() / 10.0,
+            auto_despeckle=self.despeckle_var.get(),
+            despeckle_size=self.despeckle_size_var.get(),
+            refiner_scale=self.refiner_var.get(),
+        )
+
+        clips = scan_clips()
+        clips = [c for c in clips if c.name == full_shot_name]
+        if not clips:
+            raise RuntimeError(f"Shot '{full_shot_name}' not found in ClipsForInference/.")
+
+        def on_frame_complete(i, total):
+            pct = 50 + min((i + 1) / max(total, 1) * 50, 50)
+            self._update_progress(pct, 100, f"Step 2/2 — CorridorKey: {i + 1} / {total} frames...", "blue")
+
+        run_inference(clips, settings=settings, on_frame_complete=on_frame_complete)
+
+        done = len([f for f in os.listdir(comp_dir) if is_image_file(f)]) if os.path.exists(comp_dir) else total_frames
+        self._update_progress(100, 100, f"Done! {done} frames → {full_shot_name}", "green")
+        print(f"[CorridorKey] Finished! Output: {shot_path}")
+        self._last_output_path = shot_path
+        self.root.after(0, lambda: self.open_btn.config(state="normal"))
+
+    def _paint_mask(self):
+        input_path = self.input_var.get().strip()
+        shot_name = self.shot_name_var.get().strip() or "shot"
+
+        if not input_path or not os.path.exists(input_path):
+            messagebox.showerror("Error", "Please select a valid video file or frame folder.")
+            return
+        if self._input_type == "manual_shot":
+            messagebox.showerror("Error", "Paint Mask requires a video or EXR folder as input, not a shot folder.")
+            return
+
+        self.start_btn.config(state="disabled")
+        self.paint_btn.config(state="disabled")
+        self.open_btn.config(state="disabled")
+        self._last_output_path = None
+        threading.Thread(target=self._run_paint_mask, args=(input_path, shot_name), daemon=True).start()
+
+    def _run_paint_mask(self, input_path, shot_name):
+        import time
+        try:
+            date_str = datetime.now().strftime("%Y.%m.%d")
+            full_shot_name = f"{date_str}_{shot_name}"
+            shot_path = os.path.join(CLIPS_DIR, full_shot_name)
+            input_dir = os.path.join(shot_path, "Input")
+            alpha_dir = os.path.join(shot_path, "AlphaHint")
+            comp_dir = os.path.join(shot_path, "Output", "Comp")
+            os.makedirs(input_dir, exist_ok=True)
+            os.makedirs(alpha_dir, exist_ok=True)
+
+            self._update_progress(0, 100, "Paint Mask — browser opening...", "blue")
+            print("[CorridorKey] Launching mask painter in browser...")
+
+            cmd = [
+                MATANYONE2_PYTHON, MASK_PAINTER_SCRIPT,
+                "-i", input_path,
+                "-o", alpha_dir,
+                "--export-input", input_dir,
+                "--dilate", str(self.dilate_var.get()),
+                "--blur", str(self.blur_var.get()),
+            ]
+            if self.reverse_var.get():
+                cmd.append("--reverse")
+
+            env = os.environ.copy()
+            env["PYTHONUNBUFFERED"] = "1"
+            # stdout/stderr go directly to CMD window
+            proc = subprocess.Popen(cmd, env=env)
+            self._proc = proc
+
+            while proc.poll() is None:
+                done = len([f for f in os.listdir(alpha_dir) if is_image_file(f)]) if os.path.exists(alpha_dir) else 0
+                total = max(done, 1)
+                pct = min(done / total * 50, 49)
+                self._update_progress(pct, 100, f"Step 1/2 — Painting/Propagating: {done} frames...", "blue")
+                time.sleep(0.5)
+
+            if proc.returncode != 0:
+                raise RuntimeError("Mask painter / MatAnyone2 failed — check CMD window.")
+
+            print("[CorridorKey] Mask painting done.")
+            self._run_phase2(full_shot_name, shot_path, input_dir, comp_dir)
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
+            self._update_progress(0, 100, "Failed — check CMD window", "red")
+        finally:
+            self._proc = None
+            self.root.after(0, lambda: [
+                self.start_btn.config(state="normal"),
+                self.paint_btn.config(state="normal"),
+            ])
+
     def _open_output(self):
         if self._last_output_path and os.path.isdir(self._last_output_path):
             os.startfile(self._last_output_path)
-
-    def _log(self, message):
-        def append():
-            self.log_text.config(state="normal")
-            self.log_text.insert("end", message + "\n")
-            self.log_text.see("end")
-            self.log_text.config(state="disabled")
-        self.root.after(0, append)
 
     def _update_progress(self, value, maximum, message, color="blue"):
         self.root.after(0, lambda: self.progress_var.set(value / maximum * 100))

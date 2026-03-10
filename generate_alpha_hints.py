@@ -75,8 +75,9 @@ def generate_sam_mask(frame_rgb: np.ndarray, device: str = "cuda") -> np.ndarray
     from PIL import Image as PILImage
 
     full_h, full_w = frame_rgb.shape[:2]
-    cropped, x0, y0 = crop_letterbox(frame_rgb)
-    crop_h, crop_w = cropped.shape[:2]
+    # Skip letterbox crop — works only for true black bars, breaks on dark backgrounds
+    cropped, x0, y0 = frame_rgb, 0, 0
+    crop_h, crop_w = full_h, full_w
 
     # 1. Grounding DINO — find person bbox
     print("[AlphaHint] Grounding DINO: finding 'person'...")
@@ -92,8 +93,8 @@ def generate_sam_mask(frame_rgb: np.ndarray, device: str = "cuda") -> np.ndarray
     results = dino_processor.post_process_grounded_object_detection(
         outputs,
         inputs.input_ids,
-        box_threshold=0.3,
-        text_threshold=0.3,
+        threshold=0.2,
+        text_threshold=0.2,
         target_sizes=[(crop_h, crop_w)],
     )[0]
 
@@ -274,7 +275,11 @@ def run(args):
         else:
             ref_linear = cv2.imread(exr_paths[0], cv2.IMREAD_UNCHANGED).astype(np.float32)
 
-        if args.sam:
+        if args.mask:
+            print(f"[AlphaHint] Using pre-painted mask: {args.mask}")
+            chroma_mask = cv2.imread(args.mask, cv2.IMREAD_GRAYSCALE)
+            assert chroma_mask is not None, f"Could not read mask: {args.mask}"
+        elif args.sam:
             ref_rgb = linear_to_srgb_u8(ref_linear)[..., ::-1].copy()  # BGR->RGB for SAM
             chroma_mask = generate_sam_mask(ref_rgb, device=device)
         else:
@@ -287,23 +292,36 @@ def run(args):
 
         if args.reverse:
             print("[AlphaHint] Reverse mode: last frame as reference.")
-            ref_bgr = vframes[-1].permute(1, 2, 0).numpy().astype(np.uint8)[..., ::-1].copy()
             vframes = torch.flip(vframes, [0])
-        else:
-            ref_bgr = None
-            if os.path.isdir(args.input):
-                first_frame_file = sorted(os.listdir(args.input))[0]
-                ref_bgr = cv2.imread(os.path.join(args.input, first_frame_file))
-            else:
-                cap = cv2.VideoCapture(args.input)
-                ret, ref_bgr = cap.read()
-                cap.release()
-                assert ret, "Could not read first frame from video."
 
-        if args.sam:
-            ref_rgb = ref_bgr[..., ::-1].copy()  # BGR->RGB for SAM
+        if args.mask:
+            print(f"[AlphaHint] Using pre-painted mask: {args.mask}")
+            chroma_mask = cv2.imread(args.mask, cv2.IMREAD_GRAYSCALE)
+            assert chroma_mask is not None, f"Could not read mask: {args.mask}"
+        elif args.sam:
+            if args.reverse:
+                ref_bgr = vframes[0].permute(1, 2, 0).numpy().astype(np.uint8)[..., ::-1].copy()
+            else:
+                if os.path.isdir(args.input):
+                    ref_bgr = cv2.imread(os.path.join(args.input, sorted(os.listdir(args.input))[0]))
+                else:
+                    cap = cv2.VideoCapture(args.input)
+                    ret, ref_bgr = cap.read()
+                    cap.release()
+                    assert ret, "Could not read first frame from video."
+            ref_rgb = ref_bgr[..., ::-1].copy()
             chroma_mask = generate_sam_mask(ref_rgb, device=device)
         else:
+            if args.reverse:
+                ref_bgr = vframes[0].permute(1, 2, 0).numpy().astype(np.uint8)[..., ::-1].copy()
+            else:
+                if os.path.isdir(args.input):
+                    ref_bgr = cv2.imread(os.path.join(args.input, sorted(os.listdir(args.input))[0]))
+                else:
+                    cap = cv2.VideoCapture(args.input)
+                    ret, ref_bgr = cap.read()
+                    cap.release()
+                    assert ret, "Could not read first frame from video."
             print("[AlphaHint] Chroma key (HSV)...")
             chroma_mask = generate_chroma_mask(ref_bgr, hsv_lower=tuple(args.hsv_lower), hsv_upper=tuple(args.hsv_upper))
 
@@ -390,6 +408,7 @@ if __name__ == "__main__":
     parser.add_argument("--export-input", type=str, default=None, help="Also export input frames here (PNG for video, EXR preserved for EXR input)")
     parser.add_argument("--reverse", action="store_true", help="Process frames reversed, use last frame as chroma key reference")
     parser.add_argument("--sam", action="store_true", help="Use SAM (Segment Anything) instead of chroma key to find subject on reference frame")
+    parser.add_argument("--mask", type=str, default=None, help="Path to a pre-painted mask PNG — skips chroma key and SAM entirely")
     parser.add_argument("--matanyone-max-dim", type=int, default=1280, help="Max longest dimension for MatAnyone2 (EXR only). Default: 1280")
     args = parser.parse_args()
     run(args)

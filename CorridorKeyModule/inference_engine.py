@@ -199,6 +199,10 @@ class CorridorKeyEngine:
         res_alpha = cv2.resize(res_alpha, (w, h), interpolation=cv2.INTER_LANCZOS4)
         res_fg = cv2.resize(res_fg, (w, h), interpolation=cv2.INTER_LANCZOS4)
 
+        # Hard-clip alpha to AlphaHint region — prevents the model from keying
+        # areas outside the hint (e.g. portable greenscreen panel beyond the subject).
+        res_alpha = res_alpha * mask_linear.squeeze(-1)
+
         if res_alpha.ndim == 2:
             res_alpha = res_alpha[:, :, np.newaxis]
 

@@ -53,14 +53,33 @@ ClipsForInference/
         └── FG/         ← EXR straight foreground (sRGB → convert to linear in comp)
 ```
 
+## GUI Workflow (PRIMARY — Janosch uses this exclusively)
+- Launch: `CorridorKey_GUI.bat` → tkinter window
+- **Normal flow** (greenscreen): browse MP4/MOV/EXR → Shot Name → ▶ Start
+  - Phase 1: MatAnyone2 generates AlphaHint → Mask Refiner (browser, adjust dilate/blur) → confirms
+  - Phase 2: CorridorKey inference → EXR output
+- **Paint Mask flow** (portable greenscreen / no greenscreen): browse input → Paint Mask
+  - Browser opens → click person → SAM segments → adjust dilate/blur sliders live → ▶ Run MatAnyone2
+  - Phase 2 starts automatically after
+- Output: `ClipsForInference/YYYY.MM.DD_<shot>/Output/Processed/` — EXR RGBA linear premult
+- VRAM peaks: MatAnyone2 ~18.9 GB (full-res 2K), CorridorKey ~8 GB — freed after each phase
+
+## DO NOT TOUCH (working perfectly)
+- `corridorkey_gui.py` — GUI is complete, do not restructure
+- `generate_alpha_hints.py` — pipeline is correct, runs at full resolution
+- `CorridorKeyModule/` — Nico's model code, hands off
+- Only fix what is broken. Do not "improve" things that work.
+
 ## Alpha Hint Generation
 - GVM (80 GB VRAM) and VideoMaMa (80 GB) are NOT usable on this machine
 - **Current workflow: `generate_alpha_hints.py` — fully automatic, no ComfyUI needed!**
   - Auto chroma key for frame 1 → MatAnyone2 propagates through clip → dilate+blur → AlphaHint
-  - Runs under `MatAnyone2/.venv/Scripts/python.exe generate_alpha_hints.py -i <video> -o <AlphaHint/>`
+  - Runs at **full resolution** (e.g. 2048×1080) — ~18.9 GB VRAM peak on RTX 4090, fine
+  - EXR input is downscaled to 1280px for MatAnyone2 (originals preserved in Input/)
   - MatAnyone2 located at `MatAnyone2/` (subdir), model auto-downloads on first run (135 MB)
 - Model expects **coarse/blurry/eroded** masks — NOT sharp/precise
-  - Output is dilated (~15px) + gaussian blurred (~31px) for this reason
+  - Default: dilate 10px + blur 5px (Paint Mask), dilate 70px + blur 20px (auto chroma key)
+- Paint Mask flow: SAM click → mask_painter.py → generate_alpha_hints.py --mask <png>
 - Old workflow (kept as fallback): SAM3 in ComfyUI, KEIN GrowMask, GrowMask 0px
 
 ## Color Space Rules (DO NOT BREAK)

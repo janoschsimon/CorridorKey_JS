@@ -46,3 +46,4 @@ VideoMaMaInferenceModule/checkpoints/*
 gvm_core/weights/*
 !gvm_core/weights/.gitkeep
 footage/
+site

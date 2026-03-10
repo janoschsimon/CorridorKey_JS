@@ -238,55 +238,33 @@ class CorridorKeyGUI:
                         if is_image_file(f):
                             shutil.copy2(os.path.join(input_path, f), input_dir)
 
-            # Phase 2: CorridorKey inference
+            # Phase 2: CorridorKey inference — direct Python call
             total_frames = len([f for f in os.listdir(input_dir) if is_image_file(f)])
             self._update_progress(50, 100, f"Step 2/2 — Running CorridorKey ({total_frames} frames)...", "blue")
             self._log(f"Starting CorridorKey inference on {total_frames} frames...")
 
-            import shutil as _shutil
-            uv_path = _shutil.which("uv") or "uv"
-            gamma = "s" if self.gamma_var.get() == "sRGB" else "l"
-            despill = str(self.despill_var.get())
-            despeckle = "y" if self.despeckle_var.get() else "n"
-            despeckle_size = str(self.despeckle_size_var.get())
-            refiner = f"{self.refiner_var.get():.1f}"
-            stdin_input = "\n".join([gamma, despill, despeckle, despeckle_size, refiner]) + "\n"
+            from clip_manager import InferenceSettings, run_inference, scan_clips
 
-            env = os.environ.copy()
-            env["PYTHONUNBUFFERED"] = "1"
-            proc = subprocess.Popen(
-                [uv_path, "run", "python", "-u", "clip_manager.py", "--action", "run_inference", "--shot", full_shot_name],
-                cwd=BASE_DIR,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                env=env,
+            settings = InferenceSettings(
+                input_is_linear=(self.gamma_var.get() == "Linear"),
+                despill_strength=self.despill_var.get() / 10.0,
+                auto_despeckle=self.despeckle_var.get(),
+                despeckle_size=self.despeckle_size_var.get(),
+                refiner_scale=self.refiner_var.get(),
             )
-            self._proc = proc
-            self._log(f"CorridorKey PID {proc.pid}")
 
-            def write_stdin():
-                try:
-                    proc.stdin.write(stdin_input)
-                    proc.stdin.flush()
-                    proc.stdin.close()
-                except Exception:
-                    pass
-            threading.Thread(target=write_stdin, daemon=True).start()
+            clips = scan_clips()
+            clips = [c for c in clips if c.name == full_shot_name]
+            if not clips:
+                raise RuntimeError(f"Shot '{full_shot_name}' not found in ClipsForInference/.")
 
-            def read_ck_stdout():
-                for line in proc.stdout:
-                    self._log(line.rstrip())
-            threading.Thread(target=read_ck_stdout, daemon=True).start()
+            def on_frame_complete(i, total):
+                pct = 50 + min((i + 1) / max(total, 1) * 50, 50)
+                self._update_progress(pct, 100, f"Step 2/2 — CorridorKey: {i + 1} / {total} frames...", "blue")
 
-            while proc.poll() is None:
-                done = len([f for f in os.listdir(comp_dir) if is_image_file(f)]) if os.path.exists(comp_dir) else 0
-                pct = 50 + min(done / max(total_frames, 1) * 50, 50)  # phase 2 = 50–100%
-                self._update_progress(pct, 100, f"Step 2/2 — CorridorKey: {done} / {total_frames} frames...", "blue")
-                time.sleep(0.5)
+            run_inference(clips, settings=settings, on_frame_complete=on_frame_complete)
 
-            done = len([f for f in os.listdir(comp_dir) if is_image_file(f)]) if os.path.exists(comp_dir) else 0
+            done = len([f for f in os.listdir(comp_dir) if is_image_file(f)]) if os.path.exists(comp_dir) else total_frames
             self._update_progress(100, 100, f"Done! {done} frames → {full_shot_name}", "green")
             self._log(f"✓ Finished! Output: {shot_path}")
             self._last_output_path = shot_path

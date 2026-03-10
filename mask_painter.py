@@ -86,9 +86,10 @@ def main():
     parser.add_argument("-i", "--input", required=True)
     parser.add_argument("-o", "--output", required=True)
     parser.add_argument("--export-input", default=None)
-    parser.add_argument("--dilate", type=int, default=70)
-    parser.add_argument("--blur", type=int, default=20)
+    parser.add_argument("--dilate", type=int, default=10)
+    parser.add_argument("--blur", type=int, default=5)
     parser.add_argument("--reverse", action="store_true")
+    parser.add_argument("--raw-output", default=None)
     args = parser.parse_args()
 
     print("[MaskPainter] Loading reference frame...")
@@ -163,6 +164,8 @@ def main():
         ]
         if args.export_input:
             cmd += ["--export-input", args.export_input]
+        if args.raw_output:
+            cmd += ["--raw-output", args.raw_output]
         if args.reverse:
             cmd.append("--reverse")
 

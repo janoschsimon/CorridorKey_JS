@@ -20,6 +20,7 @@ CLIPS_DIR = os.path.join(BASE_DIR, "ClipsForInference")
 MATANYONE2_PYTHON = os.path.join(BASE_DIR, "MatAnyone2", ".venv", "Scripts", "python.exe")
 GENERATE_HINTS_SCRIPT = os.path.join(BASE_DIR, "generate_alpha_hints.py")
 MASK_PAINTER_SCRIPT = os.path.join(BASE_DIR, "mask_painter.py")
+MASK_REFINER_SCRIPT = os.path.join(BASE_DIR, "mask_refiner.py")
 
 VIDEO_EXTS = (".mp4", ".mov", ".avi")
 
@@ -246,11 +247,13 @@ class CorridorKeyGUI:
                 print(f"[CorridorKey] Input: {os.path.basename(input_path)}")
                 print("[CorridorKey] Launching MatAnyone2...")
 
+                raw_dir = os.path.join(shot_path, "AlphaHintRaw")
                 cmd = [
                     MATANYONE2_PYTHON, GENERATE_HINTS_SCRIPT,
                     "-i", input_path,
                     "-o", alpha_dir,
                     "--export-input", input_dir,
+                    "--raw-output", raw_dir,
                     "--dilate", str(self.dilate_var.get()),
                     "--blur", str(self.blur_var.get()),
                 ]
@@ -276,6 +279,7 @@ class CorridorKeyGUI:
                     raise RuntimeError("AlphaHint generation failed — check CMD window.")
 
                 print("[CorridorKey] AlphaHint generation done.")
+                self._run_refiner(raw_dir, input_dir, alpha_dir)
             else:
                 # Folder mode: Input/ and AlphaHint/ must exist in the selected folder
                 import shutil
@@ -303,6 +307,32 @@ class CorridorKeyGUI:
         finally:
             self._proc = None
             self.root.after(0, lambda: self.start_btn.config(state="normal"))
+
+    def _run_refiner(self, raw_dir, input_dir, alpha_dir):
+        """Launch interactive mask refiner — blocks until user confirms."""
+        if not os.path.isdir(raw_dir) or not os.listdir(raw_dir):
+            print("[CorridorKey] No raw masks found — skipping refiner.")
+            return
+        self._update_progress(50, 100, "Mask Refiner — adjust in browser, then click Apply...", "blue")
+        print("[CorridorKey] Launching Mask Refiner in browser...")
+        cmd = [
+            MATANYONE2_PYTHON, MASK_REFINER_SCRIPT,
+            "--raw-masks", raw_dir,
+            "--input-frames", input_dir,
+            "--output", alpha_dir,
+            "--dilate", str(self.dilate_var.get()),
+            "--blur", str(self.blur_var.get()),
+        ]
+        if self.reverse_var.get():
+            cmd.append("--reverse")
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
+        proc = subprocess.Popen(cmd, env=env)
+        self._proc = proc
+        proc.wait()
+        if proc.returncode != 0:
+            raise RuntimeError("Mask refiner failed — check CMD window.")
+        print("[CorridorKey] Mask refiner done.")
 
     def _run_phase2(self, full_shot_name, shot_path, input_dir, comp_dir):
         """Phase 2: CorridorKey inference (shared by auto and paint-mask flows)."""
@@ -369,11 +399,13 @@ class CorridorKeyGUI:
             self._update_progress(0, 100, "Paint Mask — browser opening...", "blue")
             print("[CorridorKey] Launching mask painter in browser...")
 
+            raw_dir = os.path.join(shot_path, "AlphaHintRaw")
             cmd = [
                 MATANYONE2_PYTHON, MASK_PAINTER_SCRIPT,
                 "-i", input_path,
                 "-o", alpha_dir,
                 "--export-input", input_dir,
+                "--raw-output", raw_dir,
                 "--dilate", str(self.dilate_var.get()),
                 "--blur", str(self.blur_var.get()),
             ]
@@ -397,6 +429,7 @@ class CorridorKeyGUI:
                 raise RuntimeError("Mask painter / MatAnyone2 failed — check CMD window.")
 
             print("[CorridorKey] Mask painting done.")
+            self._run_refiner(raw_dir, input_dir, alpha_dir)
             self._run_phase2(full_shot_name, shot_path, input_dir, comp_dir)
 
         except Exception as e:

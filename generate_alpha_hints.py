@@ -344,6 +344,8 @@ def run(args):
 
     # 4. MatAnyone2 inference
     os.makedirs(args.output, exist_ok=True)
+    if args.raw_output:
+        os.makedirs(args.raw_output, exist_ok=True)
     if args.export_input:
         os.makedirs(args.export_input, exist_ok=True)
     print(f"[AlphaHint] Running MatAnyone2 on {total_real_frames} frames...")
@@ -369,11 +371,15 @@ def run(args):
         pha = mask_t.cpu().numpy()
         pha_u8 = np.clip(pha * 255, 0, 255).astype(np.uint8)
 
-        # 5. Coarsen for CorridorKey
-        pha_coarse = coarsen_mask(pha_u8, dilate_px=args.dilate, blur_px=args.blur)
-
         # In reverse mode, map back to original frame index
         save_idx = (total_real_frames - 1 - frame_idx) if args.reverse else frame_idx
+
+        # 5a. Save raw mask (before coarsen) if requested
+        if args.raw_output:
+            cv2.imwrite(os.path.join(args.raw_output, f"{save_idx:04d}.png"), pha_u8)
+
+        # 5b. Coarsen for CorridorKey and save
+        pha_coarse = coarsen_mask(pha_u8, dilate_px=args.dilate, blur_px=args.blur)
         cv2.imwrite(os.path.join(args.output, f"{save_idx:04d}.png"), pha_coarse)
 
         # 6. Export input frame
@@ -410,5 +416,6 @@ if __name__ == "__main__":
     parser.add_argument("--sam", action="store_true", help="Use SAM (Segment Anything) instead of chroma key to find subject on reference frame")
     parser.add_argument("--mask", type=str, default=None, help="Path to a pre-painted mask PNG — skips chroma key and SAM entirely")
     parser.add_argument("--matanyone-max-dim", type=int, default=1280, help="Max longest dimension for MatAnyone2 (EXR only). Default: 1280")
+    parser.add_argument("--raw-output", type=str, default=None, help="Also save raw (pre-coarsen) masks here for interactive refinement")
     args = parser.parse_args()
     run(args)

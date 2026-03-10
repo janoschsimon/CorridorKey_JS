@@ -4,6 +4,23 @@
 
 ---
 
+## ⚠️ CRITICAL: Memory / OOM Rules — READ FIRST
+- **NEVER accumulate subprocess output in a string** (`log += line` → OOM on long clips!)
+- In Gradio generators: keep only the last N lines (e.g. `MAX_LINES = 50`), truncate older lines
+- Pattern to use:
+  ```python
+  lines = []
+  for line in proc.stdout:
+      lines.append(line)
+      if len(lines) > MAX_LINES:
+          lines = lines[-MAX_LINES:]
+      yield "".join(lines)
+  ```
+- SAM (~2.4 GB VRAM) must be freed **before** MatAnyone2 subprocess starts — use mutable container pattern:
+  `_sam[0] = None; _predictor[0] = None; torch.cuda.empty_cache()`
+
+---
+
 ## Project
 AI-powered greenscreen keyer by Corridor Digital. Neural net separates foreground + alpha from greenscreen footage. Requires a coarse Alpha Hint mask as input.
 

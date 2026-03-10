@@ -361,6 +361,9 @@ class CorridorKeyGUI:
 
         run_inference(clips, settings=settings, on_frame_complete=on_frame_complete)
 
+        # Free CorridorKey model from VRAM so subsequent runs have room
+        self._free_vram()
+
         done = len([f for f in os.listdir(comp_dir) if is_image_file(f)]) if os.path.exists(comp_dir) else total_frames
         self._update_progress(100, 100, f"Done! {done} frames → {full_shot_name}", "green")
         print(f"[CorridorKey] Finished! Output: {shot_path}")
@@ -399,13 +402,11 @@ class CorridorKeyGUI:
             self._update_progress(0, 100, "Paint Mask — browser opening...", "blue")
             print("[CorridorKey] Launching mask painter in browser...")
 
-            raw_dir = os.path.join(shot_path, "AlphaHintRaw")
             cmd = [
                 MATANYONE2_PYTHON, MASK_PAINTER_SCRIPT,
                 "-i", input_path,
                 "-o", alpha_dir,
                 "--export-input", input_dir,
-                "--raw-output", raw_dir,
                 "--dilate", str(self.dilate_var.get()),
                 "--blur", str(self.blur_var.get()),
             ]
@@ -429,7 +430,6 @@ class CorridorKeyGUI:
                 raise RuntimeError("Mask painter / MatAnyone2 failed — check CMD window.")
 
             print("[CorridorKey] Mask painting done.")
-            self._run_refiner(raw_dir, input_dir, alpha_dir)
             self._run_phase2(full_shot_name, shot_path, input_dir, comp_dir)
 
         except Exception as e:
@@ -459,7 +459,20 @@ class CorridorKeyGUI:
                 self._proc.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 self._proc.kill()
+        self._free_vram()
         self.root.destroy()
+
+    def _free_vram(self):
+        """Release all CUDA memory held by this process."""
+        import gc
+        gc.collect()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.reset_peak_memory_stats()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

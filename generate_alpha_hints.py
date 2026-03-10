@@ -288,7 +288,17 @@ def run(args):
 
     else:
         exr_paths = None
+        # Load video/PNG frames downscaled to max_dim — same as EXR path.
+        # Full-res (e.g. 1920×1080) causes VRAM OOM in MatAnyone2 at frame ~6.
         vframes, fps, total_real_frames, video_name = read_frame_from_videos(args.input)
+        h_v, w_v = vframes.shape[2], vframes.shape[3]
+        _max = args.matanyone_max_dim
+        if max(h_v, w_v) > _max:
+            scale = _max / max(h_v, w_v)
+            new_w, new_h = int(w_v * scale), int(h_v * scale)
+            print(f"[AlphaHint] Video {w_v}x{h_v} -> {new_w}x{new_h} for MatAnyone2")
+            import torch.nn.functional as F
+            vframes = F.interpolate(vframes.float(), size=(new_h, new_w), mode="bilinear", align_corners=False).byte()
 
         if args.reverse:
             print("[AlphaHint] Reverse mode: last frame as reference.")
